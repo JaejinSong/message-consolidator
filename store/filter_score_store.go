@@ -114,6 +114,16 @@ func LinkFilterOutcomeBySourceTS(ctx context.Context, email, source, room, sourc
 	return nil
 }
 
+func LabelDeletedFilterScore(ctx context.Context, email, source, room, sourceTS string) error {
+	err := db.New(GetDB()).LabelDeletedFilterScore(ctx, db.LabelDeletedFilterScoreParams{
+		UserEmail: email, Source: source, Room: room, SourceTs: sourceTS,
+	})
+	if err != nil {
+		return fmt.Errorf("label deleted filter score: %w", err)
+	}
+	return nil
+}
+
 func ListFilterScoresSince(ctx context.Context, email string, since time.Time) ([]db.FilterScore, error) {
 	rows, err := db.New(GetDB()).ListFilterScoresSince(ctx, db.ListFilterScoresSinceParams{
 		UserEmail: email, CreatedAt: filterSince(since),

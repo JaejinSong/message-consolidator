@@ -193,3 +193,33 @@ func TestCalibrateAll_PrunesOldScores(t *testing.T) {
 		t.Errorf("fresh row must survive: %v", err)
 	}
 }
+
+func TestCalibrateUserThreshold_FalseDropSupersedesPendingRaise(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+	email := testutil.RandomEmail("calib-supersede")
+	if err := db.New(store.GetDB()).InsertCorrectionObservation(ctx, db.InsertCorrectionObservationParams{
+		UserEmail: email, Kind: ObservationKindFilterThreshold, FromValue: "0.30", ToValue: "0.35",
+		Scope: filterCalibrationScope, EvidenceCount: 1, SeenMessageIds: "[]", Status: "pending",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	id := seedFilterRow(t, email, store.FilterVerdictNoise, "r", "ts", "text")
+	if err := store.SetFilterOutcome(ctx, email, id, store.FilterOutcomeRescued); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := CalibrateUserThreshold(ctx, email, 0.3); err != nil {
+		t.Fatalf("calibrate: %v", err)
+	}
+
+	raise, ok := getObservation(t, email, ObservationKindFilterThreshold, "0.30", "0.35", "clef")
+	if !ok || raise.Status == "pending" {
+		t.Errorf("stale raise must leave pending after a false drop, got %+v", raise)
+	}
+	lower, ok := getObservation(t, email, ObservationKindFilterThreshold, "0.30", "0.15", "clef")
+	if !ok || lower.Status != "pending" {
+		t.Errorf("expected pending lower proposal 0.30->0.15, got %+v ok=%v", lower, ok)
+	}
+}

@@ -94,3 +94,78 @@ func TestMatchManualAddToFilterDrop_TooFewSharedTokens(t *testing.T) {
 		t.Errorf("2 shared tokens must not match, got %q", got)
 	}
 }
+
+func seedPassRow(t *testing.T, in store.FilterScoreInput) int64 {
+	t.Helper()
+	in.Provider, in.PActionable, in.Threshold, in.Verdict = "clef", 0.6, 0.3, store.FilterVerdictPass
+	id, err := store.InsertFilterScore(context.Background(), in)
+	if err != nil {
+		t.Fatalf("seed pass row: %v", err)
+	}
+	return id
+}
+
+func TestRecordSingleDeletion_RelabelsRowAlreadyLinkedAsTask(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+	email := testutil.RandomEmail("fb-task")
+	id := seedFilterRow(t, email, store.FilterVerdictPass, "general", "ts-9", "x")
+	LinkFilterOutcome(ctx, email, "slack", "general", "ts-9", true)
+
+	recordSingleDeletion(ctx, email, store.ConsolidatedMessage{ID: 9, Source: "slack", Room: "general", SourceTS: "ts-9"})
+
+	if got := filterOutcome(t, email, id); got != store.FilterOutcomeDeletedNoise {
+		t.Errorf("outcome = %q, want deleted_noise over the earlier task link", got)
+	}
+}
+
+func TestRecordSingleDeletion_MatchesNonLatestMessageOfGroup(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	email := testutil.RandomEmail("fb-group")
+	id := seedPassRow(t, store.FilterScoreInput{
+		UserEmail: email, Source: "whatsapp", Room: "team", SourceTS: "m3", MessageRef: "m1,m2,m3",
+	})
+	prefixID := seedPassRow(t, store.FilterScoreInput{
+		UserEmail: email, Source: "whatsapp", Room: "team", SourceTS: "m22", MessageRef: "m21,m22",
+	})
+
+	recordSingleDeletion(context.Background(), email, store.ConsolidatedMessage{ID: 3, Source: "whatsapp", Room: "team", SourceTS: "m2"})
+
+	if got := filterOutcome(t, email, id); got != store.FilterOutcomeDeletedNoise {
+		t.Errorf("group row outcome = %q, want deleted_noise", got)
+	}
+	if got := filterOutcome(t, email, prefixID); got != "" {
+		t.Errorf("partial id match must not label, got %q", got)
+	}
+}
+
+func TestRecordSingleDeletion_GmailTaskRoomMatchesFilterRow(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	email := testutil.RandomEmail("fb-gmail")
+	id := seedPassRow(t, store.FilterScoreInput{
+		UserEmail: email, Source: store.SourceGmail, SourceTS: "gmail-abc", MessageRef: "abc",
+	})
+
+	recordSingleDeletion(context.Background(), email, store.ConsolidatedMessage{ID: 4, Source: store.SourceGmail, Room: "Gmail", SourceTS: "gmail-abc"})
+
+	if got := filterOutcome(t, email, id); got != store.FilterOutcomeDeletedNoise {
+		t.Errorf("gmail row outcome = %q, want deleted_noise", got)
+	}
+}
+
+func TestRecordSingleDeletion_NeverLabelsAnotherUsersRow(t *testing.T) {
+	cleanup := setupCorrectionLearningTestDB(t)
+	defer cleanup()
+	owner := testutil.RandomEmail("fb-owner")
+	id := seedFilterRow(t, owner, store.FilterVerdictPass, "general", "ts-x", "x")
+
+	recordSingleDeletion(context.Background(), testutil.RandomEmail("fb-other"),
+		store.ConsolidatedMessage{ID: 5, Source: "slack", Room: "general", SourceTS: "ts-x"})
+
+	if got := filterOutcome(t, owner, id); got != "" {
+		t.Errorf("cross-user deletion labeled row: %q", got)
+	}
+}

@@ -211,3 +211,9 @@ export function setupTabs(
         });
     });
 };
+
+// Why: digest links deep-link to a dashboard tab via the URL hash; only known tab ids are honored.
+export function tabIdFromHash<T extends string>(hash: string, allowed: readonly T[]): T | null {
+    const id = hash.startsWith('#') ? hash.slice(1) : hash;
+    return allowed.find(t => t === id) ?? null;
+}

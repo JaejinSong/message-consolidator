@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -84,5 +85,30 @@ func TestNewGroupFilterInput(t *testing.T) {
 	want := ai.FilterInput{Email: "u@x", Source: "slack", Room: "room-a", SourceTS: "m3", MessageRef: "m2,m3,m1", Text: "payload"}
 	if got != want {
 		t.Errorf("newGroupFilterInput() = %+v, want %+v", got, want)
+	}
+}
+
+func TestGroupFilterOutcome(t *testing.T) {
+	aiErr := errors.New("ai down")
+	cases := []struct {
+		name        string
+		analyzeErr  error
+		items, ids  int
+		wantLink    bool
+		wantCreated bool
+	}{
+		{"new task", nil, 1, 1, true, true},
+		{"nothing extracted is a false pass", nil, 0, 0, true, false},
+		{"resolve-only items are actionable", nil, 2, 0, true, true},
+		{"ai failure without tasks is no evidence", aiErr, 1, 0, false, false},
+		{"envelope fallback created a task", aiErr, 1, 1, true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			created, link := groupFilterOutcome(tc.analyzeErr, tc.items, tc.ids)
+			if created != tc.wantCreated || link != tc.wantLink {
+				t.Errorf("groupFilterOutcome() = (%v, %v), want (%v, %v)", created, link, tc.wantCreated, tc.wantLink)
+			}
+		})
 	}
 }

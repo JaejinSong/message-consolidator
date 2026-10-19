@@ -308,9 +308,23 @@ func processChannelGroup(ctx context.Context, user store.User, aliases []string,
 	// returns would mark the group processed even if a crash/panic loses the tasks
 	// mid-persist, since ackGroup's ok=true is a terminal "never replay again" signal.
 	ids := processChannelItems(ctx, user, aliases, items, msgMap, groupName, adapter.Is1To1(roomKey), wg, adapter)
-	services.LinkFilterOutcome(ctx, user.Email, source, groupName, filterIn.SourceTS, len(ids) > 0)
+	if created, link := groupFilterOutcome(err, len(items), len(ids)); link {
+		services.LinkFilterOutcome(ctx, user.Email, source, groupName, filterIn.SourceTS, created)
+	}
 	ackGroup(ctx, adapter, user.Email, group, groupOutcome(false, nil, err, len(candidates)))
 	return ids
+}
+
+// Why: an AI failure says nothing about noise, and resolve/update items prove the payload was
+// actionable; labeling either as 'none' would push the threshold up and drop real tasks later.
+func groupFilterOutcome(analyzeErr error, items, newIDs int) (created, link bool) {
+	if newIDs > 0 {
+		return true, true
+	}
+	if analyzeErr != nil {
+		return false, false
+	}
+	return items > 0, true
 }
 
 // Why: tasks extracted from a group carry the id of the message they came from, so the latest

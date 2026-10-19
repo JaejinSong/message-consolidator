@@ -20,9 +20,17 @@ func linkDeletedTaskToFilterScore(ctx context.Context, userEmail string, m store
 	if m.SourceTS == "" {
 		return
 	}
-	if err := store.LinkFilterOutcomeBySourceTS(ctx, userEmail, m.Source, m.Room, m.SourceTS, store.FilterOutcomeDeletedNoise); err != nil {
+	if err := store.LabelDeletedFilterScore(ctx, userEmail, m.Source, filterRoomFor(m.Source, m.Room), m.SourceTS); err != nil {
 		logger.Warnf("[FILTER] link deleted task msg=%d: %v", m.ID, err)
 	}
+}
+
+// Why: Gmail is filtered per message with no room, while its tasks are stored under room "Gmail".
+func filterRoomFor(source, taskRoom string) string {
+	if source == store.SourceGmail {
+		return ""
+	}
+	return taskRoom
 }
 
 // matchManualAddToFilterDrop labels the best-overlapping recent unlabeled noise drop as a

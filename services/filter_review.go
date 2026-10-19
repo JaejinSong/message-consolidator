@@ -144,6 +144,10 @@ func (s *FilterReviewService) Rescue(ctx context.Context, email string, id int64
 }
 
 func rescueRoom(row db.FilterScore) string {
+	// Why: Gmail rows are scored without a room, but Gmail tasks live in room "Gmail".
+	if row.Source == store.SourceGmail {
+		return "Gmail"
+	}
 	if row.Room == "" {
 		return "General"
 	}
@@ -163,15 +167,19 @@ func (s *FilterReviewService) routeRescued(ctx context.Context, email string, ro
 			UserEmail: email, Source: row.Source, Room: rescueRoom(row), SourceTS: row.SourceTs,
 			OriginalText: row.Text, CreatedAt: row.CreatedAt.Time, AssignedAt: row.CreatedAt.Time,
 		}
+		var id store.MessageID
 		err := store.WithDBRetry("FilterReview.HandleTaskState", func() error {
-			_, e := s.route(ctx, store.GetDB(), email, item, msg)
+			var e error
+			id, e = s.route(ctx, store.GetDB(), email, item, msg)
 			return e
 		})
 		if err != nil {
 			logger.Warnf("[FILTER-REVIEW] rescue route dropped item for %s: %v", email, err)
 			continue
 		}
-		created++
+		if id > 0 {
+			created++
+		}
 	}
 	return created
 }

@@ -80,3 +80,25 @@ func TestTruncateDigestSnippet(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestBorderlineDigestBlocks_UsesPerUserThreshold(t *testing.T) {
+	defer setupReviewDB(t)()
+	ctx := context.Background()
+	email := testutil.RandomEmail("digest-user")
+	seedBorderline(t, email, 0.15, "lowered band row", "")
+	seedBorderline(t, email, 0.25, "above user threshold", "")
+	if err := store.UpsertSetting(ctx, store.ClefThresholdKey(email), "0.20", email); err != nil {
+		t.Fatalf("set threshold: %v", err)
+	}
+	defer func() { _ = store.UpsertSetting(ctx, store.ClefThresholdKey(email), "", email) }()
+
+	s := &DailyDigestService{nowFn: time.Now, Config: DailyDigestConfig{ClefThreshold: 0.3}}
+	text := blocksText(s.buildBorderlineBlocks(ctx, email))
+
+	if !strings.Contains(text, "lowered band row") {
+		t.Errorf("row in [0.10, 0.20) missing: %s", text)
+	}
+	if strings.Contains(text, "above user threshold") {
+		t.Errorf("row above the user's threshold leaked: %s", text)
+	}
+}

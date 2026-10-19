@@ -51,3 +51,13 @@ WHERE created_at >= ?;
 
 -- name: DeleteFilterScoresBefore :exec
 DELETE FROM filter_scores WHERE created_at < ?;
+
+-- name: LabelDeletedFilterScore :exec
+-- A deleted undone task marks its passed verdict a false pass, overriding the earlier 'task' link.
+-- Chat rows key on the latest message id, so any id in message_ref also matches.
+UPDATE filter_scores
+SET outcome = 'deleted_noise', outcome_at = CURRENT_TIMESTAMP
+WHERE user_email = sqlc.arg(user_email) AND source = sqlc.arg(source) AND room = sqlc.arg(room)
+  AND verdict = 'pass' AND outcome IN ('', 'task')
+  AND (source_ts = sqlc.arg(source_ts)
+       OR instr(',' || message_ref || ',', ',' || sqlc.arg(source_ts) || ',') > 0);

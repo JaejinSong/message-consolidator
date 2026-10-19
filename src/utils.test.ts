@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
-import { escapeHTML, formatDisplayTime, isStatusConnected, safeAsync, setupTabs } from './utils.ts';
+import { escapeHTML, formatDisplayTime, isStatusConnected, safeAsync, setupTabs, tabIdFromHash } from './utils.ts';
 import { ApiError } from './utils/http';
 
 describe('isStatusConnected', () => {
@@ -161,5 +161,19 @@ describe('utils.js - setupTabs', () => {
         (document.querySelector('.tab') as HTMLElement).click();
         const panel = document.getElementById('settingsPanel') as HTMLElement;
         expect(panel.classList.contains('c-settings__panel--active')).toBe(true);
+    });
+});
+
+describe('tabIdFromHash', () => {
+    const allowed = ['learningTab'] as const;
+
+    it('returns the tab id for a deep link like /#learningTab', () => {
+        expect(tabIdFromHash('#learningTab', allowed)).toBe('learningTab');
+    });
+
+    it('ignores unknown hashes and guide routes', () => {
+        expect(tabIdFromHash('#guide/start', allowed)).toBeNull();
+        expect(tabIdFromHash('#otherTab', allowed)).toBeNull();
+        expect(tabIdFromHash('', allowed)).toBeNull();
     });
 });

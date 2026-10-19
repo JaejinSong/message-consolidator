@@ -94,6 +94,9 @@ func CalibrateAllFilterThresholds(ctx context.Context, defaultThreshold float64)
 		return fmt.Errorf("calibrate: %w", err)
 	}
 	for _, email := range users {
+		if ctx.Err() != nil {
+			return fmt.Errorf("calibrate: %w", ctx.Err())
+		}
 		if err := CalibrateUserThreshold(ctx, email, defaultThreshold); err != nil {
 			logger.Warnf("[FILTER] calibrate %s failed: %v", email, err)
 		}
@@ -126,10 +129,9 @@ func proposeFilterThreshold(ctx context.Context, email string, current, next flo
 	if err != nil {
 		return fmt.Errorf("list pending observations: %w", err)
 	}
-	for _, o := range pending {
-		if o.Kind == ObservationKindFilterThreshold {
-			return nil
-		}
+	blocked, err := settlePendingThreshold(ctx, q, email, pending, next < current)
+	if err != nil || blocked {
+		return err
 	}
 	from, to := fmt.Sprintf("%.2f", current), fmt.Sprintf("%.2f", next)
 	_, err = q.GetCorrectionObservation(ctx, db.GetCorrectionObservationParams{
@@ -149,6 +151,32 @@ func proposeFilterThreshold(ctx context.Context, email string, current, next flo
 	}
 	logger.Infof("[FILTER] %s: threshold proposal %s -> %s (%d scored rows)", email, from, to, evidence)
 	return nil
+}
+
+// Why: a pending proposal normally blocks a new one, but a false drop must never wait behind a
+// stale raise the user could still approve, so a lowering proposal retires pending raises.
+func settlePendingThreshold(ctx context.Context, q *db.Queries, email string, pending []db.CorrectionObservation, lowering bool) (bool, error) {
+	for _, o := range pending {
+		if o.Kind != ObservationKindFilterThreshold {
+			continue
+		}
+		if !lowering || !isThresholdRaise(o) {
+			return true, nil
+		}
+		if err := q.UpdateCorrectionObservationStatus(ctx, db.UpdateCorrectionObservationStatusParams{
+			Status: "rejected", ID: o.ID, UserEmail: email,
+		}); err != nil {
+			return true, fmt.Errorf("retire stale threshold raise %d: %w", o.ID, err)
+		}
+		logger.Infof("[FILTER] %s: retired pending raise %s -> %s after a false drop", email, o.FromValue, o.ToValue)
+	}
+	return false, nil
+}
+
+func isThresholdRaise(o db.CorrectionObservation) bool {
+	from, okFrom := store.ParseFilterThreshold(o.FromValue)
+	to, okTo := store.ParseFilterThreshold(o.ToValue)
+	return okFrom && okTo && to > from
 }
 
 // Why: only an approved decision may change the live threshold; the value is re-validated here

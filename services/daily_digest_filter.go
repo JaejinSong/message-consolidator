@@ -29,8 +29,8 @@ func truncateDigestSnippet(text string, limit int) string {
 }
 
 func (s *DailyDigestService) buildBorderlineBlocks(ctx context.Context, email string) []slack.Block {
-	// Why: per-user threshold lookup arrives in Step 5; until then the env threshold is the only source.
-	hi := s.Config.ClefThreshold
+	// Why: the band must sit under the threshold the filter actually applies to this user.
+	hi := effectiveThreshold(ctx, email, s.Config.ClefThreshold)
 	lo := hi - borderlineBand
 	if lo < 0 {
 		lo = 0

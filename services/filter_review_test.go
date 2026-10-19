@@ -204,3 +204,24 @@ func TestFilterReview_ListDropsHeadAndScope(t *testing.T) {
 		t.Errorf("text runes = %d, want %d", n, FilterDropTextHeadRunes)
 	}
 }
+
+func TestFilterReview_RescueGmailUsesGmailRoom(t *testing.T) {
+	defer setupReviewDB(t)()
+	email := testutil.RandomEmail("rescue-gmail")
+	id, err := store.InsertFilterScore(context.Background(), store.FilterScoreInput{
+		UserEmail: email, Source: store.SourceGmail, SourceTS: "gmail-abc", MessageRef: "abc",
+		Provider: "clef", PActionable: 0.2, Threshold: 0.3, Verdict: store.FilterVerdictNoise, Text: "please review the contract",
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	var routed []routedItem
+	svc := newReviewSvc(&fakeReviewAnalyzer{items: []store.TodoItem{{State: "new", Task: "review contract"}}}, &routed)
+
+	if _, err := svc.Rescue(context.Background(), email, id); err != nil {
+		t.Fatalf("rescue: %v", err)
+	}
+	if len(routed) != 1 || routed[0].msg.Room != "Gmail" || routed[0].msg.SourceTS != "gmail-abc" {
+		t.Errorf("routed = %+v, want one item in room Gmail with source_ts gmail-abc", routed)
+	}
+}

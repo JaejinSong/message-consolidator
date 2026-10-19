@@ -41,7 +41,7 @@ import { modals } from './modals';
 import { insights } from './insights';
 import { guide } from './guide';
 import { events, EVENTS } from './events';
-import { safeAsync, hasSessionHint, setupTabs, escapeHTML, getErrorMessage, isStatusConnected } from './utils';
+import { safeAsync, hasSessionHint, setupTabs, tabIdFromHash, escapeHTML, getErrorMessage, isStatusConnected } from './utils';
 import { parseTranslatedText } from './logic';
 import { POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
@@ -791,6 +791,11 @@ const initApp = () => {
             await fetchMessages(true);
         }
     });
+
+    const hashTab = tabIdFromHash(location.hash, ['learningTab'] as const);
+    if (hashTab) {
+        document.querySelector<HTMLButtonElement>(`#dashboardContent .tab-btn[data-tab="${hashTab}"]`)?.click();
+    }
 
     document.getElementById('deadlineFilterBar')?.addEventListener('click', (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-dl-filter]');

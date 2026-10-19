@@ -192,6 +192,9 @@ type Querier interface {
 	InsertWAMessage(ctx context.Context, arg InsertWAMessageParams) error
 	IsMessageProcessed(ctx context.Context, arg IsMessageProcessedParams) (int64, error)
 	IsSourceTSProcessed(ctx context.Context, arg IsSourceTSProcessedParams) (int64, error)
+	// A deleted undone task marks its passed verdict a false pass, overriding the earlier 'task' link.
+	// Chat rows key on the latest message id, so any id in message_ref also matches.
+	LabelDeletedFilterScore(ctx context.Context, arg LabelDeletedFilterScoreParams) error
 	// Only unlabeled pass rows are linked, so a later link never overwrites an earlier label.
 	LinkFilterOutcomeBySourceTS(ctx context.Context, arg LinkFilterOutcomeBySourceTSParams) error
 	ListActiveSuppressRules(ctx context.Context, userEmail string) ([]CorrectionObservation, error)

@@ -92,6 +92,34 @@ func (q *Queries) InsertFilterScore(ctx context.Context, arg InsertFilterScorePa
 	return id, err
 }
 
+const labelDeletedFilterScore = `-- name: LabelDeletedFilterScore :exec
+UPDATE filter_scores
+SET outcome = 'deleted_noise', outcome_at = CURRENT_TIMESTAMP
+WHERE user_email = ?1 AND source = ?2 AND room = ?3
+  AND verdict = 'pass' AND outcome IN ('', 'task')
+  AND (source_ts = ?4
+       OR instr(',' || message_ref || ',', ',' || ?4 || ',') > 0)
+`
+
+type LabelDeletedFilterScoreParams struct {
+	UserEmail string `json:"user_email"`
+	Source    string `json:"source"`
+	Room      string `json:"room"`
+	SourceTs  string `json:"source_ts"`
+}
+
+// A deleted undone task marks its passed verdict a false pass, overriding the earlier 'task' link.
+// Chat rows key on the latest message id, so any id in message_ref also matches.
+func (q *Queries) LabelDeletedFilterScore(ctx context.Context, arg LabelDeletedFilterScoreParams) error {
+	_, err := q.db.ExecContext(ctx, labelDeletedFilterScore,
+		arg.UserEmail,
+		arg.Source,
+		arg.Room,
+		arg.SourceTs,
+	)
+	return err
+}
+
 const linkFilterOutcomeBySourceTS = `-- name: LinkFilterOutcomeBySourceTS :exec
 UPDATE filter_scores
 SET outcome = ?, outcome_at = CURRENT_TIMESTAMP
