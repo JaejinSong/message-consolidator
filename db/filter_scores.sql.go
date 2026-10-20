@@ -10,6 +10,48 @@ import (
 	"database/sql"
 )
 
+const claimFilterRescue = `-- name: ClaimFilterRescue :execrows
+UPDATE filter_scores
+SET outcome = 'rescued', outcome_at = CURRENT_TIMESTAMP
+WHERE id = ?1 AND user_email = ?2 AND verdict = 'noise'
+  AND outcome <> 'rescued' AND outcome = ?3
+`
+
+type ClaimFilterRescueParams struct {
+	ID          int64  `json:"id"`
+	UserEmail   string `json:"user_email"`
+	PrevOutcome string `json:"prev_outcome"`
+}
+
+// Compare-and-swap claim: only a rescuer holding the current outcome sees rows affected = 1.
+func (q *Queries) ClaimFilterRescue(ctx context.Context, arg ClaimFilterRescueParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimFilterRescue, arg.ID, arg.UserEmail, arg.PrevOutcome)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const confirmFilterNoise = `-- name: ConfirmFilterNoise :execrows
+UPDATE filter_scores
+SET outcome = 'confirmed_noise', outcome_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND verdict = 'noise' AND outcome <> 'rescued'
+`
+
+type ConfirmFilterNoiseParams struct {
+	ID        int64  `json:"id"`
+	UserEmail string `json:"user_email"`
+}
+
+// Rescued rows are left untouched.
+func (q *Queries) ConfirmFilterNoise(ctx context.Context, arg ConfirmFilterNoiseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, confirmFilterNoise, arg.ID, arg.UserEmail)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteFilterScoresBefore = `-- name: DeleteFilterScoresBefore :exec
 DELETE FROM filter_scores WHERE created_at < ?
 `
@@ -343,6 +385,24 @@ func (q *Queries) ListFilterUsers(ctx context.Context, createdAt sql.NullTime) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreFilterOutcome = `-- name: RestoreFilterOutcome :exec
+UPDATE filter_scores
+SET outcome = ?, outcome_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND outcome = 'rescued'
+`
+
+type RestoreFilterOutcomeParams struct {
+	Outcome   string `json:"outcome"`
+	ID        int64  `json:"id"`
+	UserEmail string `json:"user_email"`
+}
+
+// Reverts a claim whose extraction failed so the drop stays retryable.
+func (q *Queries) RestoreFilterOutcome(ctx context.Context, arg RestoreFilterOutcomeParams) error {
+	_, err := q.db.ExecContext(ctx, restoreFilterOutcome, arg.Outcome, arg.ID, arg.UserEmail)
+	return err
 }
 
 const setFilterOutcome = `-- name: SetFilterOutcome :exec

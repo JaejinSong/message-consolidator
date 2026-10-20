@@ -1058,3 +1058,32 @@ func TestLinkGmailFilterOutcomes(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleThreadActivity_LinksPassRowAsTask(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	email := testutil.RandomEmail("thread-link")
+	id, err := store.InsertFilterScore(ctx, store.FilterScoreInput{
+		UserEmail: email, Source: store.SourceGmail, SourceTS: "gmail-msg-link-1", MessageRef: "msg-link-1",
+		Provider: "clef", PActionable: 0.9, Threshold: 0.3, Verdict: store.FilterVerdictPass, Text: "reply",
+	})
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := types.RawMessage{ID: "msg-link-1", ThreadID: "thr-link", Text: "done"}
+
+	handled := handleThreadActivity(ctx, email, m, map[string]string{m.ID: CategoryMine}, func(store.ConsolidatedMessage) bool { return true })
+
+	row, err := store.GetFilterScore(ctx, email, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !handled || row.Outcome != store.FilterOutcomeTask {
+		t.Errorf("handled=%v outcome=%q, want true and %q", handled, row.Outcome, store.FilterOutcomeTask)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"message-consolidator/logger"
 	"message-consolidator/store"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -13,7 +14,8 @@ import (
 const (
 	borderlineDigestMax    = 3
 	borderlineBand         = 0.1
-	borderlineLookbackDays = 7
+	borderlineWeekendHours = 72
+	borderlineDayHours     = 24
 	borderlineSnippetRunes = 90
 )
 
@@ -28,6 +30,14 @@ func truncateDigestSnippet(text string, limit int) string {
 	return string(r[:limit]) + "…"
 }
 
+// Why: the digest is sent Mon-Fri only, so the window is "since the previous send" and rows never repeat.
+func borderlineSince(now time.Time) time.Time {
+	if now.Weekday() == time.Monday {
+		return now.Add(-borderlineWeekendHours * time.Hour)
+	}
+	return now.Add(-borderlineDayHours * time.Hour)
+}
+
 func (s *DailyDigestService) buildBorderlineBlocks(ctx context.Context, email string) []slack.Block {
 	// Why: the band must sit under the threshold the filter actually applies to this user.
 	hi := effectiveThreshold(ctx, email, s.Config.ClefThreshold)
@@ -35,7 +45,12 @@ func (s *DailyDigestService) buildBorderlineBlocks(ctx context.Context, email st
 	if lo < 0 {
 		lo = 0
 	}
-	since := s.nowFn().AddDate(0, 0, -borderlineLookbackDays)
+	loc, err := time.LoadLocation(s.Config.Timezone)
+	if err != nil {
+		logger.Warnf("[DIGEST] timezone %q load failed, using UTC: %v", s.Config.Timezone, err)
+		loc = time.UTC
+	}
+	since := borderlineSince(s.nowFn().In(loc))
 	rows, err := store.ListBorderlineDrops(ctx, email, since, lo, hi, borderlineDigestMax)
 	if err != nil {
 		logger.Warnf("[DIGEST] borderline drops for %s: %v", email, err)

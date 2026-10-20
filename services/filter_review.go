@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"message-consolidator/db"
@@ -18,6 +17,7 @@ var (
 	ErrFilterDropNotFound = errors.New("filter drop not found")
 	ErrFilterNotADrop     = errors.New("filter score is not a drop")
 	ErrRescueUnavailable  = errors.New("rescue extraction unavailable")
+	ErrRescueContended    = errors.New("rescue contended by concurrent updates")
 )
 
 const (
@@ -25,6 +25,8 @@ const (
 	filterDropListLimit     = 97
 	filterDropMaxDays       = 31
 	filterDropDefaultDays   = 7
+	rescueClaimAttempts     = 3
+	rescueRestoreTimeout    = 7 * time.Second
 )
 
 type ReviewAnalyzer interface {
@@ -36,8 +38,8 @@ type taskRouter func(ctx context.Context, q store.Querier, email string, item st
 type FilterReviewService struct {
 	analyzer ReviewAnalyzer
 	route    taskRouter
-	// Why: store has no conditional outcome update, so rescues serialize to stay idempotent under double clicks.
-	mu sync.Mutex
+	// Why: injectable so tests avoid the user/alias tables; returns the effective alias set.
+	loadUser func(ctx context.Context, email string) (store.User, []string, error)
 }
 
 type FilterDrop struct {
@@ -58,7 +60,7 @@ type RescueResult struct {
 
 func NewFilterReviewService(analyzer ReviewAnalyzer) *FilterReviewService {
 	// Why: a nil *GeminiClient boxed into the interface is non-nil, so callers pass an untyped nil.
-	return &FilterReviewService{analyzer: analyzer, route: HandleTaskState}
+	return &FilterReviewService{analyzer: analyzer, route: HandleTaskState, loadUser: loadRescueUser}
 }
 
 func (s *FilterReviewService) ListDrops(ctx context.Context, email string, days int, now time.Time) ([]FilterDrop, error) {
@@ -104,43 +106,81 @@ func loadDrop(ctx context.Context, email string, id int64) (db.FilterScore, erro
 	return row, nil
 }
 
-func (s *FilterReviewService) Confirm(ctx context.Context, email string, id int64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	row, err := loadDrop(ctx, email, id)
+func loadRescueUser(ctx context.Context, email string) (store.User, []string, error) {
+	user, err := store.GetOrCreateUser(ctx, email, "", "")
 	if err != nil {
+		return store.User{}, nil, fmt.Errorf("load user: %w", err)
+	}
+	aliases, err := store.GetUserAliases(ctx, user.ID)
+	if err != nil {
+		return store.User{}, nil, fmt.Errorf("load aliases: %w", err)
+	}
+	return *user, GetEffectiveAliases(*user, aliases), nil
+}
+
+func (s *FilterReviewService) Confirm(ctx context.Context, email string, id int64) error {
+	if _, err := loadDrop(ctx, email, id); err != nil {
 		return err
 	}
-	// Why: a rescued drop already produced tasks; never downgrade it to noise.
-	if row.Outcome == store.FilterOutcomeRescued {
-		return nil
-	}
-	return store.SetFilterOutcome(ctx, email, id, store.FilterOutcomeConfirmedNoise)
+	// Why: a rescued drop already produced tasks; the conditional update never downgrades it.
+	return store.ConfirmFilterNoise(ctx, email, id)
 }
 
 func (s *FilterReviewService) Rescue(ctx context.Context, email string, id int64) (RescueResult, error) {
 	if s.analyzer == nil {
 		return RescueResult{}, ErrRescueUnavailable
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	row, err := loadDrop(ctx, email, id)
+	row, claimed, err := claimRescue(ctx, email, id)
 	if err != nil {
 		return RescueResult{}, err
 	}
-	if row.Outcome == store.FilterOutcomeRescued {
+	if !claimed {
 		return RescueResult{AlreadyRescued: true}, nil
+	}
+	created, err := s.extractRescued(ctx, email, row)
+	if err != nil {
+		// Why: the request ctx may be the very reason extraction failed, and the revert must still land to keep the drop retryable.
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rescueRestoreTimeout)
+		defer cancel()
+		if rerr := store.RestoreFilterOutcome(rctx, email, id, row.Outcome); rerr != nil {
+			logger.Warnf("[FILTER-REVIEW] restore outcome failed for %s id=%d: %v", email, id, rerr)
+		}
+		return RescueResult{}, err
+	}
+	return RescueResult{Created: created}, nil
+}
+
+// Why: the claim compares against the outcome just read, so a concurrent Confirm is retried instead of overwritten.
+func claimRescue(ctx context.Context, email string, id int64) (db.FilterScore, bool, error) {
+	for range rescueClaimAttempts {
+		row, err := loadDrop(ctx, email, id)
+		if err != nil {
+			return db.FilterScore{}, false, err
+		}
+		if row.Outcome == store.FilterOutcomeRescued {
+			return row, false, nil
+		}
+		claimed, err := store.ClaimFilterRescue(ctx, email, id, row.Outcome)
+		if err != nil {
+			return db.FilterScore{}, false, err
+		}
+		if claimed {
+			return row, true, nil
+		}
+	}
+	return db.FilterScore{}, false, ErrRescueContended
+}
+
+func (s *FilterReviewService) extractRescued(ctx context.Context, email string, row db.FilterScore) (int, error) {
+	user, aliases, err := s.loadUser(ctx, email)
+	if err != nil {
+		return 0, fmt.Errorf("rescue user: %w", err)
 	}
 	items, err := s.analyzer.Analyze(ctx, email, rescueEnvelope(row), "Korean", row.Source, rescueRoom(row))
 	if err != nil {
-		return RescueResult{}, fmt.Errorf("rescue analyze: %w", err)
+		return 0, fmt.Errorf("rescue analyze: %w", err)
 	}
-	created := s.routeRescued(ctx, email, row, items)
-	// Why: marked after extraction so a failed analyze stays retryable; the false-drop signal holds even when no task results.
-	if err := store.SetFilterOutcome(ctx, email, id, store.FilterOutcomeRescued); err != nil {
-		return RescueResult{Created: created}, err
-	}
-	return RescueResult{Created: created}, nil
+	return s.routeRescued(ctx, email, user, aliases, row, items), nil
 }
 
 func rescueRoom(row db.FilterScore) string {
@@ -160,17 +200,22 @@ func rescueEnvelope(row db.FilterScore) types.EnrichedMessage {
 	}
 }
 
-func (s *FilterReviewService) routeRescued(ctx context.Context, email string, row db.FilterScore, items []store.TodoItem) int {
+func (s *FilterReviewService) routeRescued(ctx context.Context, email string, user store.User, aliases []string, row db.FilterScore, items []store.TodoItem) int {
 	created := 0
 	for _, item := range items {
-		msg := store.ConsolidatedMessage{
-			UserEmail: email, Source: row.Source, Room: rescueRoom(row), SourceTS: row.SourceTs,
-			OriginalText: row.Text, CreatedAt: row.CreatedAt.Time, AssignedAt: row.CreatedAt.Time,
+		guarded, msg, guard, ok := GuardAndBuild(ctx, TaskBuildParams{
+			UserEmail: email, User: user, Aliases: aliases, Item: item,
+			Source: row.Source, Room: rescueRoom(row), SourceTS: row.SourceTs,
+			Timestamp: row.CreatedAt.Time, OriginalText: row.Text, SourceChannels: []string{row.Source},
+		})
+		if !ok {
+			logger.Infof("[FILTER-REVIEW] extraction guard dropped rescued item for %s (%s)", email, guard.DropReason)
+			continue
 		}
 		var id store.MessageID
 		err := store.WithDBRetry("FilterReview.HandleTaskState", func() error {
 			var e error
-			id, e = s.route(ctx, store.GetDB(), email, item, msg)
+			id, e = s.route(ctx, store.GetDB(), email, guarded, msg)
 			return e
 		})
 		if err != nil {

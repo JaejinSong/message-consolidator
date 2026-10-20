@@ -13,10 +13,14 @@ type Querier interface {
 	AppendOriginalText(ctx context.Context, arg AppendOriginalTextParams) error
 	AppendSecondaryID(ctx context.Context, arg AppendSecondaryIDParams) error
 	ArchiveOldTasks(ctx context.Context, datetime interface{}) (int64, error)
+	// Compare-and-swap claim: only a rescuer holding the current outcome sees rows affected = 1.
+	ClaimFilterRescue(ctx context.Context, arg ClaimFilterRescueParams) (int64, error)
 	CloseSlackThread(ctx context.Context, arg CloseSlackThreadParams) error
 	// Why: parks a long-term-unprocessed task out of tracking; done/is_deleted guard keeps
 	// terminal states untouched, so lifecycle flips active -> excluded only.
 	ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error)
+	// Rescued rows are left untouched.
+	ConfirmFilterNoise(ctx context.Context, arg ConfirmFilterNoiseParams) (int64, error)
 	// Drop counts per stage/verdict/source, to compare against task creation over the same window.
 	CountExtractionDecisions(ctx context.Context, arg CountExtractionDecisionsParams) ([]CountExtractionDecisionsRow, error)
 	CountLearnedExamplesByOrigin(ctx context.Context, arg CountLearnedExamplesByOriginParams) (int64, error)
@@ -256,6 +260,8 @@ type Querier interface {
 	// so a single conversation does not split into two rooms in reports and thread lookups.
 	RenameRoom(ctx context.Context, arg RenameRoomParams) (int64, error)
 	RestoreExcluded(ctx context.Context, arg RestoreExcludedParams) (int64, error)
+	// Reverts a claim whose extraction failed so the drop stays retryable.
+	RestoreFilterOutcome(ctx context.Context, arg RestoreFilterOutcomeParams) error
 	// Why: restore is user activity. Reset updated_at for a fresh long-term-unprocessed
 	// runway and clear exclusion markers so the scan can re-evaluate from scratch.
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error

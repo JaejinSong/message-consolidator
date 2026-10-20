@@ -61,3 +61,22 @@ WHERE user_email = sqlc.arg(user_email) AND source = sqlc.arg(source) AND room =
   AND verdict = 'pass' AND outcome IN ('', 'task')
   AND (source_ts = sqlc.arg(source_ts)
        OR instr(',' || message_ref || ',', ',' || sqlc.arg(source_ts) || ',') > 0);
+
+-- name: ClaimFilterRescue :execrows
+-- Compare-and-swap claim: only a rescuer holding the current outcome sees rows affected = 1.
+UPDATE filter_scores
+SET outcome = 'rescued', outcome_at = CURRENT_TIMESTAMP
+WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email) AND verdict = 'noise'
+  AND outcome <> 'rescued' AND outcome = sqlc.arg(prev_outcome);
+
+-- name: RestoreFilterOutcome :exec
+-- Reverts a claim whose extraction failed so the drop stays retryable.
+UPDATE filter_scores
+SET outcome = ?, outcome_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND outcome = 'rescued';
+
+-- name: ConfirmFilterNoise :execrows
+-- Rescued rows are left untouched.
+UPDATE filter_scores
+SET outcome = 'confirmed_noise', outcome_at = CURRENT_TIMESTAMP
+WHERE id = ? AND user_email = ? AND verdict = 'noise' AND outcome <> 'rescued';

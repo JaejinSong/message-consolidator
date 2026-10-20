@@ -104,6 +104,30 @@ func SetFilterOutcome(ctx context.Context, email string, id int64, outcome strin
 	return nil
 }
 
+// ClaimFilterRescue reports whether this caller won the rescue claim from the given previous outcome.
+func ClaimFilterRescue(ctx context.Context, email string, id int64, prevOutcome string) (bool, error) {
+	n, err := db.New(GetDB()).ClaimFilterRescue(ctx, db.ClaimFilterRescueParams{ID: id, UserEmail: email, PrevOutcome: prevOutcome})
+	if err != nil {
+		return false, fmt.Errorf("claim filter rescue: %w", err)
+	}
+	return n > 0, nil
+}
+
+func RestoreFilterOutcome(ctx context.Context, email string, id int64, outcome string) error {
+	err := db.New(GetDB()).RestoreFilterOutcome(ctx, db.RestoreFilterOutcomeParams{Outcome: outcome, ID: id, UserEmail: email})
+	if err != nil {
+		return fmt.Errorf("restore filter outcome: %w", err)
+	}
+	return nil
+}
+
+func ConfirmFilterNoise(ctx context.Context, email string, id int64) error {
+	if _, err := db.New(GetDB()).ConfirmFilterNoise(ctx, db.ConfirmFilterNoiseParams{ID: id, UserEmail: email}); err != nil {
+		return fmt.Errorf("confirm filter noise: %w", err)
+	}
+	return nil
+}
+
 func LinkFilterOutcomeBySourceTS(ctx context.Context, email, source, room, sourceTS, outcome string) error {
 	err := db.New(GetDB()).LinkFilterOutcomeBySourceTS(ctx, db.LinkFilterOutcomeBySourceTSParams{
 		Outcome: outcome, UserEmail: email, Source: source, Room: room, SourceTs: sourceTS,

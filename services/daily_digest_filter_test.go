@@ -102,3 +102,15 @@ func TestBorderlineDigestBlocks_UsesPerUserThreshold(t *testing.T) {
 		t.Errorf("row above the user's threshold leaked: %s", text)
 	}
 }
+
+func TestBorderlineSince_MondayCoversWeekendOtherDaysOneDay(t *testing.T) {
+	monday := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
+	tuesday := monday.AddDate(0, 0, 1)
+
+	if got := monday.Sub(borderlineSince(monday)); got != 72*time.Hour {
+		t.Errorf("monday lookback = %v, want 72h", got)
+	}
+	if got := tuesday.Sub(borderlineSince(tuesday)); got != 24*time.Hour {
+		t.Errorf("tuesday lookback = %v, want 24h", got)
+	}
+}

@@ -477,6 +477,8 @@ func handleThreadActivity(ctx context.Context, email string, m types.RawMessage,
 		return false
 	}
 	_ = store.MarkAsProcessed(ctx, store.GetDB(), email, m.ID)
+	// Why: this message skips processBatch, so its filter_scores pass row would stay unlinked; thread activity is task-related.
+	services.LinkFilterOutcome(ctx, email, store.SourceGmail, "", "gmail-"+m.ID, true)
 	return true
 }
 
