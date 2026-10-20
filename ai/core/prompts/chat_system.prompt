@@ -1,6 +1,6 @@
 ---
 name: chat_system
-version: 1.20.1
+version: 1.21.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
@@ -35,6 +35,8 @@ Scan the `Existing Tasks` list (each entry has id, task, original_text).
 # Field Rules:
 - `id`: 0 if new; existing task's id if matched above.
 - `state`: intent of the message (new task, update/resolve existing, etc.). Use `none` when the message carries no finishable work: FYI and status broadcasts, holiday or policy announcements, acknowledgements, opinions, and descriptions of work the sender has already completed. Do not manufacture a task by rephrasing an observation as an imperative.
+  - **Another participant's own progress or next step is not a new task.** When a sender other than __CURRENT_USER__ reports their own status or announces what they will do themselves ("saya coba cek ke tim dulu", "I'll check and revert", "still working on it"), emit `state: update` on the matching open task if one exists, otherwise `state: none`. Exception: it answers a request __CURRENT_USER__ made and __CURRENT_USER__ is now waiting on it -> `category: WAITING`.
+  - **One exchange, one task.** Consecutive messages that negotiate the same outcome (a request, its clarification, a proposed time, the agreement) form ONE task. Extract it once, on the message that first states the ask, and fold details from the later messages into that entry's `deadline`/`subtasks`; the later messages get no entry of their own.
   - **Multilingual completion markers**: past-tense/perfective completion is not English-only — recognize "already"/"done"/"sent" (English), "sudah"/"udah" (Indonesian/Malay), "sudah siap" (Malay), and Thai completion particles ("แล้ว" = already-done) as closing signals for the done-ack rule above, not as new work.
 - `task`: English, naming **one finishable thing** -- a reader must be able to say whether it is done. Lead with the **WHY (outcome/purpose)**, not the last-sentence verb, but express that purpose as a concrete action on a specific object: `<action verb> <specific object>` (e.g. "Attend Carabao meeting", "Approve the Unipost quotation"). Append `via <mechanism>` only when the mechanism is part of what gets delivered ("Align POC scope via online session", "Notify the team of the Coronation Day holiday via email").
   - **Reject abstract restatements of intent.** If the title would describe a standing goal or a way of working rather than one finishable item, it is not a task. NOT "Convert opportunities to outcomes via pipeline development", NOT "Maintain scheduling visibility via consistent calendar usage", NOT "Secure partner ownership via technical guidance" -- none of these name a deliverable. Extract the concrete next step instead, or emit `state: none`.

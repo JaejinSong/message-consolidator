@@ -182,7 +182,7 @@ func TestChatSystemSelfDMReportedSpeechRule(t *testing.T) {
 	body := string(content)
 	required := []string{
 		"Self-DM reported-speech exception",
-		"version: 1.20.1",
+		"version: 1.21.0",
 	}
 	for _, token := range required {
 		if !strings.Contains(body, token) {
@@ -790,7 +790,7 @@ func TestChatSystemEventTimeDeadlineRule(t *testing.T) {
 	body := string(content)
 	for _, token := range []string{
 		"states when the task/event happens or is due via a clock time",
-		"version: 1.20.1",
+		"version: 1.21.0",
 	} {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing v1.20.0 event-time deadline token: %q", token)
@@ -838,6 +838,27 @@ func TestChatSystemAnnouncedDecisionRule(t *testing.T) {
 	} {
 		if !strings.Contains(body, token) {
 			t.Errorf("chat_system.prompt missing announced-decision token: %q", token)
+		}
+	}
+}
+
+// TestChatSystemSelfReportExchangeRules guards the v1.21.0 rules. Why: a 5-run golden eval
+// cut unlabeled new tasks 5.4 -> 2.0 with recall held; a "questions are not tasks" rule was
+// dropped because it lost real asks addressed to the user's team (recall 0.77 -> 0.71).
+func TestChatSystemSelfReportExchangeRules(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/chat_system.prompt")
+	if err != nil {
+		t.Fatalf("read chat_system: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"Another participant's own progress or next step is not a new task.",
+		"One exchange, one task.",
+		"version: 1.21.0",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("chat_system.prompt missing v1.21.0 token: %q", token)
 		}
 	}
 }
