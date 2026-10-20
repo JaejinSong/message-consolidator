@@ -80,6 +80,34 @@ func DismissCompletionCandidate(ctx context.Context, q Querier, email string, id
 	})
 }
 
+// PendingCompletionCandidate is an open task carrying an unreviewed confirm-first completion suggestion.
+type PendingCompletionCandidate struct {
+	ID         MessageID
+	Task       string
+	Room       string
+	Source     string
+	SourceText string
+	DetectedAt string
+}
+
+// ListPendingCompletionCandidates returns open tasks with a pending completion candidate, oldest detection first.
+func ListPendingCompletionCandidates(ctx context.Context, email string, limit int) ([]PendingCompletionCandidate, error) {
+	rows, err := db.New(GetDB()).ListPendingCompletionCandidates(ctx, db.ListPendingCompletionCandidatesParams{
+		UserEmail: nullString(email), RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list pending completion candidates: %w", err)
+	}
+	out := make([]PendingCompletionCandidate, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, PendingCompletionCandidate{
+			ID: MessageID(r.ID), Task: r.Task, Room: r.Room, Source: r.Source,
+			SourceText: r.SourceText, DetectedAt: r.DetectedAt,
+		})
+	}
+	return out, nil
+}
+
 // WasCandidateDismissed reports whether sourceLink was already dismissed as a
 // completion candidate for this task, so recordCompletionCandidate does not
 // resurrect a suggestion the user explicitly rejected.

@@ -409,3 +409,22 @@ WHERE user_email = ?1
   )
 ORDER BY deadline_date
 LIMIT ?4;
+
+-- name: ListPendingCompletionCandidates :many
+-- Why: Feeds the digest section for confirm-first completion candidates that are still
+-- unreviewed. Oldest detection first so long-pending items surface before fresh ones.
+-- json_valid guards json_extract from erroring on malformed metadata rows.
+SELECT id,
+       COALESCE(task, '') AS task,
+       COALESCE(room, '') AS room,
+       COALESCE(source, '') AS source,
+       CAST(COALESCE(json_extract(metadata, '$.completion_candidate.source_text'), '') AS TEXT) AS source_text,
+       CAST(COALESCE(json_extract(metadata, '$.completion_candidate.detected_at'), '') AS TEXT) AS detected_at
+FROM messages
+WHERE user_email = sqlc.arg(user_email)
+  AND done = 0
+  AND is_deleted = 0
+  AND json_valid(metadata)
+  AND json_extract(metadata, '$.completion_candidate.status') = 'pending'
+ORDER BY detected_at ASC, id ASC
+LIMIT sqlc.arg(row_limit);

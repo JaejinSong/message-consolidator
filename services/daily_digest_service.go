@@ -96,6 +96,7 @@ func (s *DailyDigestService) Dispatch(ctx context.Context) error {
 		blocks := append(baseBlocks,
 			buildUndatedBlocks(email, undated)...,
 		)
+		blocks = append(blocks, s.buildCandidateBlocks(ctx, email)...)
 		blocks = append(blocks, buildStalledBlocks(stalledBuckets)...)
 		blocks = append(blocks, s.buildBorderlineBlocks(ctx, email)...)
 		if err := s.Slack.SendDMBlocks(ctx, slackID, blocks, fallback); err != nil {

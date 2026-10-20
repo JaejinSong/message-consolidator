@@ -109,8 +109,8 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 		}
 		// Why: counterparty chatter outside the task's reply chain must not hard-close
 		// a task (false auto-resolve regression); it lands as a confirm-first candidate.
-		if item.State == "resolve" && !isTrustedResolve(item, match) {
-			item.State = "resolve_candidate"
+		if item.State == "resolve" {
+			item.State = resolveStateFor(room, item, match)
 		}
 		return item
 	}
@@ -125,6 +125,21 @@ func (s *TasksService) resolveProposalItem(room string, item store.TodoItem, act
 	}
 	return item
 }
+
+// resolveStateFor keeps "resolve" for trusted proposals and demotes the rest to "resolve_candidate".
+func resolveStateFor(room string, item store.TodoItem, match *store.ConsolidatedMessage) string {
+	rule := trustedResolveRule(item, match)
+	switch rule {
+	case "":
+		return "resolve_candidate"
+	case "query_answered", "shared_member_report":
+		logger.Infof("[RESOLVE-TRUST] rule=%s task=%d room=%s", rule, match.ID, room)
+	}
+	return "resolve"
+}
+
+// strongTopicalOverlap is the token overlap that, absent a shared thread, anchors a proposal strongly enough for open-room resolve trust.
+const strongTopicalOverlap = minTopicalOverlap + 1
 
 // findMatch returns the matched task and whether the match was fuzzy (title-similarity-only,
 // no ID/thread anchor). Why: a fuzzy match must never rename the target task (see FuzzyMatched).
@@ -171,17 +186,61 @@ func isArchivedCandidate(m *store.ConsolidatedMessage) bool {
 	return m.Category == string(types.CategoryMerged)
 }
 
-// isTrustedResolve — only the user's own statement, an in-thread reply, or the
-// assignee's own completion report may hard-close a task; anything else becomes a
-// confirm-first candidate (resolve_candidate).
+// isTrustedResolve — only the user's own statement, an in-thread reply, the assignee's
+// own completion report, or an ID-anchored QUERY answer / group-member report may
+// hard-close a task; anything else becomes a confirm-first candidate (resolve_candidate).
 func isTrustedResolve(item store.TodoItem, match *store.ConsolidatedMessage) bool {
-	if item.IsFromMe {
+	return trustedResolveRule(item, match) != ""
+}
+
+// trustedResolveRule names the trust rule that lets a resolve proposal hard-close a task, or "" when none applies.
+func trustedResolveRule(item store.TodoItem, match *store.ConsolidatedMessage) string {
+	switch {
+	case item.IsFromMe:
+		return "from_me"
+	case item.ThreadID != "" && match.ThreadID != "" && item.ThreadID == match.ThreadID:
+		return "same_thread"
+	case senderIsAssignee(item.SenderName, match.Assignee):
+		return "assignee_report"
+	case isQueryAnswered(item, match):
+		return "query_answered"
+	case isSharedMemberReport(item, match):
+		return "shared_member_report"
+	}
+	return ""
+}
+
+// hasStrongAnchor reports whether an ID-verified proposal is tied to the matched task by thread or
+// by more than the minimal topical overlap. Why: IDVerified alone is also true for a blank-title
+// bare resolve or a bare-minimum overlap, too weak to let any room member close a task.
+func hasStrongAnchor(item store.TodoItem, match *store.ConsolidatedMessage) bool {
+	if !item.IDVerified || item.FuzzyMatched || strings.TrimSpace(item.Task) == "" {
+		return false
+	}
+	if item.ThreadID != "" && item.ThreadID == match.ThreadID {
 		return true
 	}
-	if item.ThreadID != "" && match.ThreadID != "" && item.ThreadID == match.ThreadID {
-		return true
+	return titleTokenOverlap(item.Task, match.Task) >= strongTopicalOverlap
+}
+
+// isQueryAnswered: a QUERY is done once someone other than the asker answers it.
+func isQueryAnswered(item store.TodoItem, match *store.ConsolidatedMessage) bool {
+	if match.Category != string(types.CategoryQuery) || !hasStrongAnchor(item, match) {
+		return false
 	}
-	return senderIsAssignee(item.SenderName, match.Assignee)
+	sender := NormalizeSenderIdentity(item.SenderName)
+	return sender != "" && sender != NormalizeSenderIdentity(match.Requester)
+}
+
+// isSharedMemberReport: a group-assigned task reported done by any member other than its requester.
+func isSharedMemberReport(item store.TodoItem, match *store.ConsolidatedMessage) bool {
+	if NormalizeSenderIdentity(match.Assignee) != AssigneeShared || !hasStrongAnchor(item, match) {
+		return false
+	}
+	sender := NormalizeSenderIdentity(item.SenderName)
+	requester := NormalizeSenderIdentity(match.Requester)
+	// Why: the literal "shared" is a placeholder, not a real group member.
+	return sender != "" && sender != AssigneeShared && requester != "" && sender != requester
 }
 
 // senderIsAssignee reports whether the raw message sender is the task's assignee.

@@ -17,6 +17,7 @@ const (
 	borderlineWeekendHours = 72
 	borderlineDayHours     = 24
 	borderlineSnippetRunes = 90
+	candidateDigestMax     = 5
 )
 
 var digestSlackEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
@@ -70,6 +71,34 @@ func (s *DailyDigestService) buildBorderlineBlocks(ctx context.Context, email st
 	}
 	link := strings.TrimRight(s.Config.AppBaseURL, "/") + "/#learningTab"
 	return append(blocks, mrkdwnSection(fmt.Sprintf("<%s|학습 탭에서 검토하기>", link)))
+}
+
+var candidateMarkupNeutralizer = strings.NewReplacer("*", " ", "_", " ", "~", " ", "`", " ")
+
+// candidateText flattens whitespace, truncates, escapes Slack control chars and neutralizes mrkdwn emphasis markers.
+func candidateText(text string) string {
+	return digestSlackEscaper.Replace(candidateMarkupNeutralizer.Replace(truncateDigestSnippet(text, borderlineSnippetRunes)))
+}
+
+func (s *DailyDigestService) buildCandidateBlocks(ctx context.Context, email string) []slack.Block {
+	rows, err := store.ListPendingCompletionCandidates(ctx, email, candidateDigestMax)
+	if err != nil {
+		logger.Warnf("[DIGEST] pending completion candidates for %s: %v", email, err)
+		return nil
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	blocks := []slack.Block{
+		slack.NewDividerBlock(),
+		mrkdwnSection("*✅ 완료로 보이는 태스크 (확인 필요)*"),
+	}
+	for _, r := range rows {
+		line := fmt.Sprintf("• %s  (%s/%s) — \"%s\"", candidateText(r.Task), candidateText(r.Source), candidateText(r.Room), candidateText(r.SourceText))
+		blocks = append(blocks, mrkdwnSection(line))
+	}
+	link := strings.TrimRight(s.Config.AppBaseURL, "/")
+	return append(blocks, mrkdwnSection(fmt.Sprintf("<%s|앱에서 확인하기>", link)))
 }
 
 func mrkdwnSection(text string) slack.Block {

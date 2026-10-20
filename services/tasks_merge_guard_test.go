@@ -326,3 +326,112 @@ func TestTitleTokenOverlap(t *testing.T) {
 		})
 	}
 }
+
+// Why: QUERY/shared trust rules apply only to ID-anchored proposals; a fuzzy title match
+// has no anchor so it must stay a confirm-first candidate.
+func TestResolveProposalItem_QueryAndSharedTrust(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	const title = "Clarify per-core license CPU/vCPU counting scope"
+	id := store.MessageID(1)
+	idPtr := func(withID bool) *store.MessageID {
+		if withID {
+			return &id
+		}
+		return nil
+	}
+
+	cases := []struct {
+		name      string
+		category  string
+		assignee  string
+		requester string
+		sender    string
+		withID    bool
+		wantState string
+	}{
+		{"query answered by anyone resolves", "QUERY", "Khairuz", "Ardi", "Faisal", true, "resolve"},
+		{"query fuzzy match stays candidate", "QUERY", "Khairuz", "Ardi", "Faisal", false, "resolve_candidate"},
+		{"query empty sender stays candidate", "QUERY", "Khairuz", "Ardi", "", true, "resolve_candidate"},
+		{"shared member report resolves", "TASK", "shared", "Ardi", "Faisal", true, "resolve"},
+		{"shared requester self stays candidate", "TASK", "shared", "Ardi", "ardi", true, "resolve_candidate"},
+		{"shared fuzzy stays candidate", "TASK", "shared", "Ardi", "Faisal", false, "resolve_candidate"},
+		{"task non-assignee still demotes", "TASK", "Khairuz", "Ardi", "Faisal", true, "resolve_candidate"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			active := []store.ConsolidatedMessage{{
+				ID: 1, Room: skyworxRoom, Task: title, Category: tc.category,
+				Assignee: tc.assignee, Requester: tc.requester, ThreadID: "THREAD-DIFFERENT",
+			}}
+			item := store.TodoItem{
+				ID: idPtr(tc.withID), State: "resolve", Task: title, Category: tc.category, SenderName: tc.sender,
+			}
+			got := svc.resolveProposalItem(skyworxRoom, item, active)
+			if got.State != tc.wantState {
+				t.Errorf("state = %q, want %q", got.State, tc.wantState)
+			}
+		})
+	}
+}
+
+func TestTrustedResolveRule_Names(t *testing.T) {
+	t.Parallel()
+	const title = "Clarify per-core license CPU/vCPU counting scope"
+	query := &store.ConsolidatedMessage{Category: "QUERY", Assignee: "Khairuz", Requester: "Ardi", Task: title, ThreadID: "T"}
+	shared := &store.ConsolidatedMessage{Category: "TASK", Assignee: "shared", Requester: "Ardi", Task: title}
+	anchored := func(sender string) store.TodoItem {
+		return store.TodoItem{SenderName: sender, Task: title, IDVerified: true}
+	}
+	cases := []struct {
+		name  string
+		item  store.TodoItem
+		match *store.ConsolidatedMessage
+		want  string
+	}{
+		{"from_me", store.TodoItem{IsFromMe: true}, query, "from_me"},
+		{"same_thread", store.TodoItem{ThreadID: "T"}, query, "same_thread"},
+		{"assignee_report", store.TodoItem{SenderName: "khairuz"}, query, "assignee_report"},
+		{"query_answered", anchored("Faisal"), query, "query_answered"},
+		{"query asker restatement", anchored("ardi"), query, ""},
+		{"shared_member_report", anchored("Faisal"), shared, "shared_member_report"},
+		{"shared empty requester", anchored("Faisal"), &store.ConsolidatedMessage{Category: "TASK", Assignee: "shared", Task: title}, ""},
+		{"none", store.TodoItem{SenderName: "Faisal"}, query, ""},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := trustedResolveRule(tc.item, tc.match); got != tc.want {
+				t.Errorf("rule = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// Why: IDVerified is also true for a blank-title bare resolve or a bare-minimum title overlap;
+// neither is a strong enough anchor to let any room member close a QUERY.
+func TestResolveProposalItem_QueryWeakAnchorStaysCandidate(t *testing.T) {
+	t.Parallel()
+	svc := &TasksService{}
+	id := store.MessageID(1)
+	active := []store.ConsolidatedMessage{{
+		ID: 1, Room: skyworxRoom, Task: "Clarify license counting scope", Category: "QUERY",
+		Assignee: "Khairuz", Requester: "Ardi", ThreadID: "THREAD-A",
+	}}
+	cases := []struct {
+		name string
+		task string
+	}{
+		{"blank title bare resolve", ""},
+		{"exactly minimum overlap, different thread", "Clarify license pricing tiers"},
+	}
+	for _, tc := range cases {
+		item := store.TodoItem{ID: &id, State: "resolve", Task: tc.task, Category: "QUERY", SenderName: "Faisal", ThreadID: "THREAD-B"}
+		if got := svc.resolveProposalItem(skyworxRoom, item, active); got.State != "resolve_candidate" {
+			t.Errorf("%s: state = %q, want resolve_candidate", tc.name, got.State)
+		}
+	}
+}

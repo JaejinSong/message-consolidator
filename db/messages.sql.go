@@ -997,6 +997,70 @@ func (q *Queries) ListPastEventCandidates(ctx context.Context, arg ListPastEvent
 	return items, nil
 }
 
+const listPendingCompletionCandidates = `-- name: ListPendingCompletionCandidates :many
+SELECT id,
+       COALESCE(task, '') AS task,
+       COALESCE(room, '') AS room,
+       COALESCE(source, '') AS source,
+       CAST(COALESCE(json_extract(metadata, '$.completion_candidate.source_text'), '') AS TEXT) AS source_text,
+       CAST(COALESCE(json_extract(metadata, '$.completion_candidate.detected_at'), '') AS TEXT) AS detected_at
+FROM messages
+WHERE user_email = ?1
+  AND done = 0
+  AND is_deleted = 0
+  AND json_valid(metadata)
+  AND json_extract(metadata, '$.completion_candidate.status') = 'pending'
+ORDER BY detected_at ASC, id ASC
+LIMIT ?2
+`
+
+type ListPendingCompletionCandidatesParams struct {
+	UserEmail sql.NullString `json:"user_email"`
+	RowLimit  int64          `json:"row_limit"`
+}
+
+type ListPendingCompletionCandidatesRow struct {
+	ID         int64  `json:"id"`
+	Task       string `json:"task"`
+	Room       string `json:"room"`
+	Source     string `json:"source"`
+	SourceText string `json:"source_text"`
+	DetectedAt string `json:"detected_at"`
+}
+
+// Why: Feeds the digest section for confirm-first completion candidates that are still
+// unreviewed. Oldest detection first so long-pending items surface before fresh ones.
+// json_valid guards json_extract from erroring on malformed metadata rows.
+func (q *Queries) ListPendingCompletionCandidates(ctx context.Context, arg ListPendingCompletionCandidatesParams) ([]ListPendingCompletionCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingCompletionCandidates, arg.UserEmail, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingCompletionCandidatesRow
+	for rows.Next() {
+		var i ListPendingCompletionCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Task,
+			&i.Room,
+			&i.Source,
+			&i.SourceText,
+			&i.DetectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const refreshCacheActive = `-- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
 FROM messages

@@ -222,6 +222,10 @@ type Querier interface {
 	// from erroring on malformed metadata rows -- an invalid row is treated as having
 	// no existing candidate, so it stays eligible.
 	ListPastEventCandidates(ctx context.Context, arg ListPastEventCandidatesParams) ([]ListPastEventCandidatesRow, error)
+	// Why: Feeds the digest section for confirm-first completion candidates that are still
+	// unreviewed. Oldest detection first so long-pending items surface before fresh ones.
+	// json_valid guards json_extract from erroring on malformed metadata rows.
+	ListPendingCompletionCandidates(ctx context.Context, arg ListPendingCompletionCandidatesParams) ([]ListPendingCompletionCandidatesRow, error)
 	// Why: kind='precision' is deliberately outside ListActiveSuppressRules' filter, so these
 	// can never be applied by guardSuppressRule -- they exist to be read and approved.
 	ListPrecisionObservations(ctx context.Context, userEmail string) ([]ListPrecisionObservationsRow, error)
