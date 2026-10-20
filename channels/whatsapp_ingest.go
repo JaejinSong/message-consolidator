@@ -31,7 +31,7 @@ func (m *WAManager) handleEvent(email string, client *whatsmeow.Client, evt any)
 	case *events.OfflineSyncCompleted:
 		logger.Debugf("[WA] event for %s: offline sync completed", email)
 	case *events.LoggedOut:
-		logger.Debugf("[WA] event for %s: logged out", email)
+		logger.Warnf("[WA] %s logged out by WhatsApp (on_connect=%v reason=%s); device session deleted, QR rescan required", email, v.OnConnect, v.Reason)
 		m.OnLoggedOut(email)
 		m.mu.Lock()
 		delete(m.clients, email)
