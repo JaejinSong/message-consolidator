@@ -46,7 +46,7 @@ func TestEvaluateTransitionBudgetLeavesRoomForReasoning(t *testing.T) {
 	t.Parallel()
 	f := &transitionFakeTransport{reply: LLMResponse{Text: `{"status":"RESOLVE"}`}}
 	if _, err := transitionTestClient(f).EvaluateTaskTransition(
-		context.Background(), "me@example.com", "parent task", "already up on 8080", nil); err != nil {
+		context.Background(), "me@example.com", "parent task", "", "already up on 8080", nil); err != nil {
 		t.Fatalf("EvaluateTaskTransition: %v", err)
 	}
 	if len(f.requests) != 1 {
@@ -78,7 +78,7 @@ func TestEvaluateTransitionReportsTruncationNotBadJSON(t *testing.T) {
 		Usage:        LLMUsage{PromptTokens: 871, CompletionTokens: DefaultMaxTokens},
 	}}
 	_, err := transitionTestClient(f).EvaluateTaskTransition(
-		context.Background(), "me@example.com", "parent task", "long mixed-language reply", nil)
+		context.Background(), "me@example.com", "parent task", "", "long mixed-language reply", nil)
 	if err == nil {
 		t.Fatal("err = nil, want a truncation error")
 	}
@@ -99,7 +99,7 @@ func TestEvaluateTransitionParsesNormalResponse(t *testing.T) {
 		Usage: LLMUsage{CompletionTokens: 1404},
 	}}
 	res, err := transitionTestClient(f).EvaluateTaskTransition(
-		context.Background(), "me@example.com", "parent task", "reply", nil)
+		context.Background(), "me@example.com", "parent task", "", "reply", nil)
 	if err != nil {
 		t.Fatalf("EvaluateTaskTransition: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestEvaluateTransitionLogsToInferenceLog(t *testing.T) {
 	f := &transitionFakeTransport{reply: LLMResponse{Text: `{"status":"RESOLVE"}`}}
 	replyText := "already up on 8080"
 	if _, err := transitionTestClient(f).EvaluateTaskTransition(
-		context.Background(), "me@example.com", "parent task", replyText, nil); err != nil {
+		context.Background(), "me@example.com", "parent task", "", replyText, nil); err != nil {
 		t.Fatalf("EvaluateTaskTransition: %v", err)
 	}
 
@@ -164,7 +164,7 @@ func TestEvaluateTransitionLogsErrorOnTruncation(t *testing.T) {
 		Usage:        LLMUsage{PromptTokens: 871, CompletionTokens: DefaultMaxTokens},
 	}}
 	if _, err := transitionTestClient(f).EvaluateTaskTransition(
-		context.Background(), "me@example.com", "parent task", "long reply", nil); err == nil {
+		context.Background(), "me@example.com", "parent task", "", "long reply", nil); err == nil {
 		t.Fatal("err = nil, want a truncation error")
 	}
 

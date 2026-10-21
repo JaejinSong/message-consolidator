@@ -1,6 +1,6 @@
 ---
 name: completion_check
-version: 2.9.0
+version: 2.10.0
 geminiModel: gemini-3-flash-preview
 geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
@@ -10,19 +10,21 @@ deepseekThinking: on
 Classify how a reply message affects an existing task. Apply rules in order — stop at first match.
 
 # Rules:
-1. RESOLVE — task is verifiably done, or the requester accepts delivered work as closing the loop, or speaker redirects/delegates the whole inquiry:
+1. RESOLVE — task is verifiably done, or the requester accepts delivered work as closing the loop, or speaker redirects the inquiry to another channel:
    - Explicit completion: "Done", "Fixed", "Resolved", "sent", "completed", "sudah selesai", an attached deliverable, ✅, ✔️
    - Closing acknowledgment after delivery: "Thanks", "Got it, thanks", "Perfect" — gratitude/closure wording responding to a result, not a bare receipt of a request.
-   - Redirect/routing to another channel or person: "please use #channel", "go to #helpdesk", "이 채널로 직접 문의", "DM 으로 안내 드렸습니다", "이관해주세요", "redirect this to" — routing is closure of the original inquiry.
-   - Delegation acceptance / self-substitution: "I'll handle this", "I'll attend as substitute", "대타 참석 하겠습니다", "내가 대신 할게요", "I'll cover this" — speaker committing themselves on behalf of others = closure of the open inquiry.
+   - Redirect/routing to another channel: "please use #channel", "go to #helpdesk", "이 채널로 직접 문의", "DM 으로 안내 드렸습니다", "redirect this to #ops" — routing is closure of the original inquiry. Handing the task itself to a named person is NOT routing — that is a reassignment (rule 2).
+   - Delegation acceptance / self-substitution: "I'll handle this", "I'll attend as substitute", "대타 참석 하겠습니다", "내가 대신 할게요", "I'll cover this" — speaker committing themselves on behalf of others = closure of the open inquiry. Applies when the open item is a call for someone to step in (who will cover, attend, or take it). When the task is concrete work and someone other than the Current Assignee takes it over, the work is still open — that is a reassignment (rule 2).
    - Delivers the ask: the reply hands over the requested information, answer, file, or change itself -- in past tense/perfective ("updated the system to...", "sent the details...") or as a direct answer to what was asked -- even if long or detailed. Length and detail are not signals of UPDATE; what matters is whether the ask is now satisfied.
 
 2. UPDATE — reply contains new information that genuinely changes the task, or reports partial progress that leaves the original ask open:
-   - Adds scope ("Also add X"), changes deadline ("Move to Friday"), reassigns ("JJ will handle this")
+   - Adds scope ("Also add X"), changes deadline ("Move to Friday")
+   - Reassigns: ownership of the whole task moves to a named person other than the Current Assignee ("JJ will handle this", "Hady, please complete and return this", "이 건은 민수님이 맡아주세요", the new owner volunteering "I'll take this over"). Set `assigned_to` to that person. `updated_text` may equal the current title when the owner is the only change.
+   - NOT a reassignment: a question or request for input addressed to someone ("Hady, can you confirm the NDA scope?"), a CC/FYI, or someone helping with one part while the owner keeps the task — leave `assigned_to` empty.
    - A future-tense/intent statement that also adds new scope, a new deadline, or a concrete next step counts as UPDATE, not RESOLVE.
    - Partial delivery: part of the ask is done but the reply itself says or implies the rest is still pending ("Updated X; Y still pending") -- UPDATE, not RESOLVE, because the ask is not fully satisfied yet.
    - Bare acknowledgments ("Ok", "👍", "Sure") are NOT updates, even if phrased positively.
-   - Discussion is NOT an update: questions, opinions, explanations, or background facts about the topic ("For APM the vCPU is counted per VM", "we need to trace it first") leave scope, deadline, owner, and progress unchanged -- NONE. `updated_text` would equal the current title, which is the tell.
+   - Discussion is NOT an update: questions, opinions, explanations, or background facts about the topic ("For APM the vCPU is counted per VM", "we need to trace it first") leave scope, deadline, owner, and progress unchanged -- NONE. `updated_text` would equal the current title and `assigned_to` would be empty, which is the tell.
 
 3. NEW — a completely new unrelated request in the same thread:
    - "Can you also book a meeting?", "Forget that, do Y instead"
@@ -42,58 +44,82 @@ Classify how a reply message affects an existing task. Apply rules in order — 
 
 # Response Schema:
 Output ONLY the JSON object below. No markdown, no prose, no code fences.
-{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<updated complete task title reflecting all changes, will replace the current title — only for UPDATE, else empty string>", "subtask_updates": [{"index": 0, "done": true}]}
+{"status": "RESOLVE" | "UPDATE" | "NEW" | "NONE", "updated_text": "<updated complete task title reflecting all changes, will replace the current title — only for UPDATE, else empty string>", "assigned_to": "<new owner's name as written in the message — only for an UPDATE that reassigns, else empty string>", "subtask_updates": [{"index": 0, "done": true}]}
+- Never put the owner into `updated_text` ("Hady to complete ..."); the title names the work, `assigned_to` names who does it.
 
 [Examples]
 Parent Task: Attend weekly report meeting as substitute
 Reply: 주간보고 대타 참석 하겠습니다.
-Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "RESOLVE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Analyze API error message for authentication issues
 Reply: 에러메시지 분석은 인증정보가 포함되어서 DM 으로 안내 드렸습니다.
-Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "RESOLVE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Prepare onboarding materials
 Subtasks:
 0. [ ] Write welcome email
 1. [ ] Set up dev environment guide
 Reply: Welcome email is done. Dev guide is still in progress.
-Output: {"status": "UPDATE", "updated_text": "Prepare onboarding materials", "subtask_updates": [{"index": 0, "done": true}]}
+Output: {"status": "UPDATE", "updated_text": "Prepare onboarding materials", "assigned_to": "", "subtask_updates": [{"index": 0, "done": true}]}
 
 Parent Task: Fill in the security form
 Reply: ok, noted
-Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Obtain the Notion Internal Integration token
 Reply: Hmm.. Ok. I'll check and update you.
-Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Obtain the Notion Internal Integration token
 Reply: thanks JJ
-Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "RESOLVE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Review PDRM POC document PDRM-Promox.docx
 Reply: [Document: WHATAP PDRM POC HIGH LEVEL TIMELINE & SERVER LIST.xlsx]
-Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Prepare the POC review report for the next Puspakom session
 Reply: Thanks @Andy for the deck
-Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Prepare the POC review report for the next Puspakom session
 Reply: For apm, the vcpu in the physical server/vm is what we count
-Output: {"status": "NONE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number
 Reply: I have updated the system to differentiate document numbering — quotations now use the QT prefix and invoices the IN prefix.
-Output: {"status": "RESOLVE", "updated_text": "", "subtask_updates": []}
+Output: {"status": "RESOLVE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 Parent Task: Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number
 Reply: Updated the numbering for quotations; invoices still pending.
-Output: {"status": "UPDATE", "updated_text": "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number", "subtask_updates": []}
+Output: {"status": "UPDATE", "updated_text": "Differentiate quotation and invoice numbering in Global Quote & PI Generator and ensure approvals use the right number", "assigned_to": "", "subtask_updates": []}
+
+Parent Task: Complete the UpGuard security questionnaire requested by MAP Group Asia
+Current Assignee: JJ
+Reply: Hi Hady, please complete and return the TPRM questionnaire by 23 Oct. Mask any NDA-gated evidence and mark it "available under NDA on request".
+Output: {"status": "UPDATE", "updated_text": "Complete and return the MAP TPRM questionnaire by 23 Oct, masking NDA-gated evidence", "assigned_to": "Hady", "subtask_updates": []}
+
+Parent Task: Find a substitute to attend Friday's partner review
+Current Assignee: JJ
+Reply: I'll attend on Friday instead.
+Output: {"status": "RESOLVE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
+
+Parent Task: Migrate the billing DB to the new cluster
+Current Assignee: JJ
+Reply: Budi here, I'll take this over from JJ.
+Output: {"status": "UPDATE", "updated_text": "Migrate the billing DB to the new cluster", "assigned_to": "Budi", "subtask_updates": []}
+
+Parent Task: Complete the UpGuard security questionnaire requested by MAP Group Asia
+Current Assignee: JJ
+Reply: Hady, can you check with Andy whether the pentest report needs an NDA first?
+Output: {"status": "NONE", "updated_text": "", "assigned_to": "", "subtask_updates": []}
 
 [Context]
 Parent Task: {{.ParentTask}}
+{{- if .ParentAssignee}}
+Current Assignee: {{.ParentAssignee}}
+{{- end}}
 {{- if .SubtasksContext}}
 Subtasks:
 {{.SubtasksContext}}

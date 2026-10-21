@@ -13,7 +13,7 @@ import (
 
 type AICompleter interface {
 	AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
-	EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error)
+	EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error)
 	Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error)
 }
 
@@ -175,7 +175,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		// Single-task: fall through to the shared single-call path below.
 	}
 
-	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, msg.OriginalText, tasks[0].Subtasks)
+	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, tasks[0].Assignee, msg.OriginalText, tasks[0].Subtasks)
 	if err != nil {
 		return false, fmt.Errorf("transition analysis failed: %w", err)
 	}
@@ -193,7 +193,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 func (s *CompletionService) EvaluateThreadReply(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
 	handled := false
 	for _, task := range tasks {
-		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, msg.OriginalText, task.Subtasks)
+		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
 		if err != nil {
 			return handled, fmt.Errorf("thread reply transition failed: %w", err)
 		}
@@ -226,7 +226,7 @@ func (s *CompletionService) applyThreadReplyOutcome(ctx context.Context, res ai.
 func (s *CompletionService) evaluatePerTask(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
 	handled := false
 	for _, task := range tasks {
-		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, msg.OriginalText, task.Subtasks)
+		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
 		if err != nil {
 			return false, fmt.Errorf("transition analysis failed: %w", err)
 		}
@@ -272,6 +272,8 @@ func (s *CompletionService) applySubtaskUpdates(ctx context.Context, email strin
 	}
 }
 
+// updateTitle picks the title an UPDATE writes. Why: a pure reassignment may leave
+// updated_text empty, and an empty title must never overwrite the parent's own.
 func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.TaskTransition, msg, parent store.ConsolidatedMessage) bool {
 	parentID := parent.ID
 	switch res.Status {
@@ -284,11 +286,12 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.T
 		}
 		return true
 	case "UPDATE":
-		if res.UpdatedText == "" {
+		if res.UpdatedText == "" && res.AssignedTo == "" {
 			return false
 		}
 		s.applySubtaskUpdates(ctx, msg.UserEmail, parent, res.SubtaskUpdates)
-		item := store.TodoItem{State: "update", ID: &parentID, Task: res.UpdatedText}
+		// Why: an owner-only change leaves Task empty, which routes to append-only and never rewrites the title from a stale snapshot.
+		item := store.TodoItem{State: "update", ID: &parentID, Task: res.UpdatedText, AssignedTo: res.AssignedTo}
 		if _, err := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg); err != nil {
 			logger.Errorf("[COMPLETION] handleCompletionResult: UPDATE HandleTaskState failed taskID=%d email=%s: %v", parentID, msg.UserEmail, err)
 			return false

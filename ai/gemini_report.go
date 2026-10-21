@@ -161,7 +161,7 @@ func (g *AIClient) parseTransitionResponse(resp LLMResponse, email, logInput str
 // EvaluateTaskTransition determines if a reply completes or updates a specific parent task.
 // Why: [Thread-Aware Intelligence] Uses a specialized prompt to analyze the conversational relationship
 // between a parent message and its reply, enabling deterministic state transitions (RESOLVE/UPDATE).
-func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (TaskTransition, error) {
+func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (TaskTransition, error) {
 	if g == nil || g.transport == nil {
 		return TaskTransition{}, fmt.Errorf("AI client not initialized")
 	}
@@ -170,6 +170,7 @@ func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask
 	subtasksCtx := formatSubtasksContext(subtasks)
 	data := core.ExtractionContext{
 		ParentTask:      parentTask,
+		ParentAssignee:  parentAssignee,
 		MessagePayload:  replyText,
 		SubtasksContext: subtasksCtx,
 		CurrentTime:     time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),

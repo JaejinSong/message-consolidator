@@ -763,7 +763,7 @@ func TestCompletionCheckDeliversTheAskRule(t *testing.T) {
 	}
 	body := string(content)
 	required := []string{
-		"version: 2.9.0",
+		"version: 2.10.0",
 		"Delivers the ask",
 		"even if long or detailed",
 		"reports partial progress that leaves the original ask open",
@@ -773,6 +773,61 @@ func TestCompletionCheckDeliversTheAskRule(t *testing.T) {
 		if !strings.Contains(body, token) {
 			t.Errorf("completion_check.prompt missing v2.7.0 rule phrase: %q", token)
 		}
+	}
+}
+
+// TestCompletionCheckReassignRule guards the v2.10.0 reassignment contract. Why: the
+// service layer applies assigned_to verbatim, so losing these phrases lets the model put
+// the owner into the title again or reassign on a mere question to someone.
+func TestCompletionCheckReassignRule(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/completion_check.prompt")
+	if err != nil {
+		t.Fatalf("read completion_check: %v", err)
+	}
+	body := string(content)
+	for _, token := range []string{
+		"Never put the owner into `updated_text`",
+		"NOT a reassignment",
+		"assigned_to",
+		"redirects the inquiry to another channel",
+		"I'll take this over from JJ",
+	} {
+		if !strings.Contains(body, token) {
+			t.Errorf("completion_check.prompt missing reassignment phrase: %q", token)
+		}
+	}
+}
+
+// TestCompletionCheckRendersCurrentAssignee pins the optional Current Assignee line.
+func TestCompletionCheckRendersCurrentAssignee(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		assignee string
+		want     bool
+	}{
+		{"assignee given renders line", "Alice", true},
+		{"empty assignee omits line", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out, err := LoadPrompt(PromptCompletionCheck).Render(ExtractionContext{
+				ParentTask: "Send report", ParentAssignee: tc.assignee, MessagePayload: "ok",
+			})
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			// Why: the rules text also mentions "Current Assignee", so match the context line only.
+			got := strings.Contains(out, "Parent Task: Send report\nCurrent Assignee:")
+			if got != tc.want {
+				t.Errorf("Current Assignee line present = %v, want %v", got, tc.want)
+			}
+			if tc.want && !strings.Contains(out, "\nCurrent Assignee: "+tc.assignee) {
+				t.Errorf("rendered prompt missing assignee value %q", tc.assignee)
+			}
+		})
 	}
 }
 

@@ -47,6 +47,7 @@ const reportGenerateTimeout = 271 * time.Second
 type TaskTransition struct {
 	Status         string          `json:"status"`                    // NEW, UPDATE, RESOLVE, NONE
 	UpdatedText    string          `json:"updated_text"`              // New English summary for UPDATE status
+	AssignedTo     string          `json:"assigned_to"`               // New owner name when an UPDATE reassigns the whole task
 	SubtaskUpdates []SubtaskUpdate `json:"subtask_updates,omitempty"` // Partial subtask state changes for UPDATE/NONE
 }
 

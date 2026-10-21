@@ -18,15 +18,17 @@ type MockAI struct {
 	CallCount int
 	// AnalyzeCallCount tracks Analyze invocations so tests can assert the
 	// fallback-extraction path never fires (confirm-first must not extract).
-	AnalyzeCallCount int
+	AnalyzeCallCount   int
+	LastParentAssignee string // parentAssignee passed on the most recent EvaluateTaskTransition call
 }
 
 func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
 	return m.Results, m.Err
 }
 
-func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
+func (m *MockAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
 	m.CallCount++
+	m.LastParentAssignee = parentAssignee
 	// Why: Sequence-mode allows tests to return different statuses per call for
 	// per-task evaluation verification. Falls back to Results for single-status cases.
 	if len(m.Sequence) > 0 {
@@ -69,6 +71,7 @@ type MockStore struct {
 	OpenFTSResults     []store.ConsolidatedMessage
 	OpenFTSErr         error
 	OpenFTSCalls       int
+	UpdateItems        []store.TodoItem // items HandleTaskState received with State "update"
 }
 
 func (m *MockStore) GetIncompleteByThreadID(ctx context.Context, q store.Querier, email, threadID string) ([]store.ConsolidatedMessage, error) {
@@ -95,6 +98,7 @@ func (m *MockStore) HandleTaskState(ctx context.Context, q store.Querier, email 
 		m.CapturedIDs = append(m.CapturedIDs, *item.ID)
 	case "update":
 		m.ReleasedIDs = append(m.ReleasedIDs, *item.ID)
+		m.UpdateItems = append(m.UpdateItems, item)
 	case "new":
 		m.NewItemTasks = append(m.NewItemTasks, item.Task)
 	}

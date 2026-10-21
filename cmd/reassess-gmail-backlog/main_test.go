@@ -53,7 +53,7 @@ func (f *fakeAI) AnalyzeWithContext(ctx context.Context, email string, msg types
 	return nil, nil
 }
 
-func (f *fakeAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
+func (f *fakeAI) EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error) {
 	f.callCount++
 	return f.transition, nil
 }

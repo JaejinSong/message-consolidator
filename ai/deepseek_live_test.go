@@ -135,6 +135,7 @@ func TestLive_DeepSeek_EvaluateTransition(t *testing.T) {
 
 	res, err := c.EvaluateTaskTransition(ctx, "live@test",
 		"Send the Q2 report to the finance team",
+		"",
 		"Done, I just emailed the Q2 report to finance.", nil)
 	if err != nil {
 		t.Fatalf("EvaluateTaskTransition: %v", err)
@@ -158,8 +159,11 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 	cases := []struct {
 		name       string
 		parentTask string
+		assignee   string
 		reply      string
 		want       string
+		// Why: a substring, because the model may echo a full name ("Hady Tandibali"); empty means assigned_to must be empty.
+		wantAssignee string
 	}{
 		{
 			name:       "volunteer_substitute_resolves",
@@ -275,6 +279,54 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 			reply:      "Updated the numbering for quotations; invoices still pending.",
 			want:       "UPDATE",
 		},
+		{
+			name:         "handover_to_named_person_reassigns",
+			parentTask:   "Complete the UpGuard security questionnaire requested by MAP Group Asia",
+			assignee:     "JJ",
+			reply:        "Hi Hady, we have received MAP's TPRM questionnaire. Please fill it in and return it to them by 23/10/26. For evidence that requires an NDA, mark it as available on request.",
+			want:         "UPDATE",
+			wantAssignee: "Hady",
+		},
+		{
+			name:         "korean_handover_reassigns",
+			parentTask:   "Prepare the Q4 partner pricing sheet",
+			assignee:     "JJ",
+			reply:        "이 건은 민수님이 맡아서 금요일까지 정리해주세요.",
+			want:         "UPDATE",
+			wantAssignee: "민수",
+		},
+		{
+			name:         "new_owner_takes_over_reassigns",
+			parentTask:   "Migrate the billing DB to the new cluster",
+			assignee:     "JJ",
+			reply:        "Rina here, I'll take the migration over from JJ starting today.",
+			want:         "UPDATE",
+			wantAssignee: "Rina",
+		},
+		{
+			name:         "question_to_someone_is_not_reassign",
+			parentTask:   "Complete the UpGuard security questionnaire requested by MAP Group Asia",
+			assignee:     "JJ",
+			reply:        "Hady, can you check with Andy whether the pentest report needs an NDA first?",
+			want:         "NONE",
+			wantAssignee: "",
+		},
+		{
+			name:         "cc_is_not_reassign",
+			parentTask:   "Send the renewal quote to Puspakom",
+			assignee:     "JJ",
+			reply:        "cc @Sari for visibility",
+			want:         "NONE",
+			wantAssignee: "",
+		},
+		{
+			name:         "volunteer_cover_with_assignee_still_resolves",
+			parentTask:   "Find someone to cover the Friday customer demo",
+			assignee:     "JJ",
+			reply:        "I'll cover this.",
+			want:         "RESOLVE",
+			wantAssignee: "",
+		},
 	}
 
 	const runsPerCase = 3
@@ -286,15 +338,15 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 
 			passed := 0
 			for i := 0; i < runsPerCase; i++ {
-				res, err := c.EvaluateTaskTransition(ctx, "live@test", tc.parentTask, tc.reply, nil)
+				res, err := c.EvaluateTaskTransition(ctx, "live@test", tc.parentTask, tc.assignee, tc.reply, nil)
 				if err != nil {
 					t.Errorf("run %d: EvaluateTaskTransition: %v", i, err)
 					continue
 				}
-				if res.Status == tc.want {
+				if res.Status == tc.want && assigneeMatches(res.AssignedTo, tc.wantAssignee) {
 					passed++
 				} else {
-					t.Logf("run %d: status=%q, want %q (reply=%q)", i, res.Status, tc.want, tc.reply)
+					t.Logf("run %d: status=%q assigned_to=%q, want %q/%q (reply=%q)", i, res.Status, res.AssignedTo, tc.want, tc.wantAssignee, tc.reply)
 				}
 			}
 			t.Logf("%s: %d/%d runs matched %q", tc.name, passed, runsPerCase, tc.want)
@@ -303,4 +355,11 @@ func TestLive_DeepSeek_CompletionCheckRegression(t *testing.T) {
 			}
 		})
 	}
+}
+
+func assigneeMatches(got, want string) bool {
+	if want == "" {
+		return got == ""
+	}
+	return strings.Contains(got, want)
 }

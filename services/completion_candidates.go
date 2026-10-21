@@ -111,7 +111,7 @@ const minTopicalOverlap = 2
 // true when handled.
 func (s *CompletionService) handleCrossThreadCandidates(ctx context.Context, msg store.ConsolidatedMessage, candidates []store.ConsolidatedMessage) bool {
 	top := candidates[0]
-	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, msg.OriginalText, top.Subtasks)
+	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, top.Task, top.Assignee, msg.OriginalText, top.Subtasks)
 	if err != nil {
 		// Why: this path only bumped a counter, so an output-budget truncation dropped the
 		// completion detection with nothing in the log to attribute it to. The sibling paths

@@ -454,8 +454,49 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		logger.Debugf("[SCAN] room=%s: extraction guard demotions: %v", group, guard.Demotions)
 	}
 
+	parentID := foldCandidateParentID(ctx, user, guardedItem, msg, m, adapter)
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, guardedItem, msg)
+	if parentID != 0 && id == parentID {
+		reviewFoldedAssignee(ctx, msg, parentID, guardedItem.Assignee)
+	}
 	return id
+}
+
+const foldedAssigneeReviewTimeout = 41 * time.Second
+
+// assigneeReviewSkipSources already get AI assignee judgment elsewhere.
+// Why: Slack thread replies go through EvaluateThreadReply and Gmail through
+// ProcessPotentialCompletion, so reviewing here would pay for the same call twice.
+var assigneeReviewSkipSources = map[string]bool{
+	store.SourceSlack: true,
+	store.SourceGmail: true,
+}
+
+// foldCandidateParentID returns the open thread parent a new item may fold into, or 0
+// when the folded-assignee review cannot apply. Looked up before HandleTaskState because
+// afterwards a freshly created task in the same thread is indistinguishable from the parent.
+func foldCandidateParentID(ctx context.Context, user store.User, item store.TodoItem, msg store.ConsolidatedMessage, m types.RawMessage, adapter ChannelAdapter) store.MessageID {
+	// Why: replay re-enters saveChannelItem for messages the first pass already reviewed.
+	if deps.completionSvc == nil || m.IsReplay || item.State != "new" || item.Assignee == "" || msg.ThreadID == "" {
+		return 0
+	}
+	if assigneeReviewSkipSources[adapter.Source()] || adapter.IsFromMe(m, user) {
+		return 0
+	}
+	parents, err := store.GetIncompleteByThreadID(ctx, store.GetDB(), user.Email, msg.ThreadID)
+	if err != nil || len(parents) == 0 {
+		return 0
+	}
+	return parents[0].ID
+}
+
+func reviewFoldedAssignee(ctx context.Context, msg store.ConsolidatedMessage, parentID store.MessageID, assignee string) {
+	// Why: runs inline in the sequential room loop, so a hung AI call must not stall the batch.
+	reviewCtx, cancel := context.WithTimeout(ctx, foldedAssigneeReviewTimeout)
+	defer cancel()
+	if _, err := deps.completionSvc.ReviewFoldedAssignee(reviewCtx, msg, parentID, assignee); err != nil {
+		logger.Warnf("[SCAN] room=%s: folded assignee review failed: %v", msg.Room, err)
+	}
 }
 
 // senderRawFor resolves the display-name fallback shared by AI-driven and envelope-fallback
