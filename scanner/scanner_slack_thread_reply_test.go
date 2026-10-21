@@ -15,8 +15,10 @@ import (
 // fakeThreadReplyAI is a minimal services.AICompleter fake so dispatchCounterpartyThreadReply
 // tests can exercise the real *services.CompletionService without a network call.
 type fakeThreadReplyAI struct {
-	transition ai.TaskTransition
-	callCount  int
+	transition    ai.TaskTransition
+	callCount     int
+	followup      ai.FollowupVerdict
+	followupCalls int
 }
 
 func (f *fakeThreadReplyAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
@@ -210,4 +212,12 @@ func TestDispatchCounterpartyThreadReply_NoOpenTaskFallsBackToKeywordGate(t *tes
 	if fakeAI.callCount != 0 {
 		t.Error("expected no AI call: no open task in thread and no completion keyword")
 	}
+}
+
+func (f *fakeThreadReplyAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	f.followupCalls++
+	if f.followup.Verdict == "" {
+		return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+	}
+	return f.followup, nil
 }

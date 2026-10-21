@@ -454,6 +454,12 @@ func saveChannelItem(ctx context.Context, user store.User, aliases []string, ite
 		logger.Debugf("[SCAN] room=%s: extraction guard demotions: %v", group, guard.Demotions)
 	}
 
+	// Why: replay re-queues rows the first pass did not finish; skipping the guard there risks a duplicate task, never a lost one.
+	// Returns 0 so an absorbed reminder is not counted as a new task (translation, newIDs).
+	if deps.completionSvc != nil && !m.IsReplay && deps.completionSvc.IsReminderOfDone(ctx, guardedItem, msg) {
+		return 0
+	}
+
 	parentID := foldCandidateParentID(ctx, user, guardedItem, msg, m, adapter)
 	id, _ := services.HandleTaskState(ctx, nil, user.Email, guardedItem, msg)
 	if parentID != 0 && id == parentID {

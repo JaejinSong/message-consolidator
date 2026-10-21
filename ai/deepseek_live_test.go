@@ -363,3 +363,53 @@ func assigneeMatches(got, want string) bool {
 	}
 	return strings.Contains(got, want)
 }
+
+// TestLive_DeepSeek_FollowupCheckRegression exercises the followup_check REMINDER/NEW rules.
+// Why: hiding a real request is worse than one extra task, so each NEW case must hold and
+// the UpGuard reminder (task 13477 -> 13504) must be caught.
+func TestLive_DeepSeek_FollowupCheckRegression(t *testing.T) {
+	c := liveClient(t)
+	cases := []struct {
+		name, closedTask, closedOn, message, want string
+	}{
+		{"upguard_automated_reminder", "Complete MAP Group Asia Third Party Risk Management Questionnaire (UpGuard) by 27 Oct 2026", "2026-10-18",
+			"UpGuard - Security Questionnaire Reminder. This is a friendly reminder that muhamad.holik@map.co.id from MAP Group Asia has asked you to complete the security questionnaire.", "REMINDER"},
+		{"friendly_follow_up_same_form", "Complete the vendor onboarding form for Telkomsel", "2026-10-12",
+			"Re: friendly follow-up, please complete the vendor onboarding form", "REMINDER"},
+		{"next_weeks_report", "Submit the weekly activity report to yspark@whatap.io before end of day (Friday)", "2026-10-10",
+			"Please send this week's activity report by Friday using the country-tagged template.", "NEW"},
+		{"delivery_never_received", "Send the signed NDA to Puspakom", "2026-10-02",
+			"Hi, we checked our inbox but never received the signed NDA. Could you resend it?", "NEW"},
+		{"same_deal_different_deliverable", "Provide an update on the XLSmart tender proposed commercial model", "2026-10-19",
+			"For XLSmart, please also lock the six commercial terms before Andy confirms with the customer.", "NEW"},
+		{"added_scope_pricing", "Send the APM pricing to Indomaret", "2026-10-15",
+			"Please also send the pricing for the mobile module", "NEW"},
+	}
+
+	const runsPerCase = 3
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			defer cancel()
+
+			passed := 0
+			for i := 0; i < runsPerCase; i++ {
+				res, err := c.EvaluateFollowup(ctx, "live@test", tc.closedTask, tc.closedOn, tc.message)
+				if err != nil {
+					t.Errorf("run %d: EvaluateFollowup: %v", i, err)
+					continue
+				}
+				if res.Verdict == tc.want {
+					passed++
+				} else {
+					t.Logf("run %d: verdict=%q reason=%q, want %q", i, res.Verdict, res.Reason, tc.want)
+				}
+			}
+			t.Logf("%s: %d/%d runs matched %q", tc.name, passed, runsPerCase, tc.want)
+			if passed == 0 {
+				t.Errorf("%s: 0/%d runs matched %q", tc.name, runsPerCase, tc.want)
+			}
+		})
+	}
+}

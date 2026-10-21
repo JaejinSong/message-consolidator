@@ -29,6 +29,7 @@ func TestResolveModelThinking(t *testing.T) {
 		// deepseekModel key selects the model for provider=deepseek, not a DeepSeek-family id.
 		{"report_summary", core.PromptReportSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkOff}, want{"glm-5.3-flash", ThinkOn}},
 		{"completion_check", core.PromptCompletionCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOn}},
+		{"followup_check", core.PromptFollowupCheck, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOn}},
 		{"task_merge_summary", core.PromptTaskMergeSummary, modelSpec{}, want{"gemini-3-flash-preview", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
 		{"translation_system", core.PromptTranslationSystem, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
 		{"report_translator", core.PromptReportTranslator, modelSpec{}, want{"gemini-3.1-flash-lite", ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},

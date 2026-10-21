@@ -104,7 +104,7 @@ func TestParseNewEmailsAllSuccessAdvancesCursor(t *testing.T) {
 func TestAnalyzeAndSaveEmailsMissingDepsHoldsCursor(t *testing.T) {
 	//Why: scanner.Init failure must not let the cursor advance past unanalyzed mail.
 	ids, ok := analyzeAndSaveEmails(context.Background(), "test@example.com", "Korean",
-		[]types.RawMessage{{ID: "m1"}}, nil, nil, nil, nil, nil)
+		[]types.RawMessage{{ID: "m1"}}, nil, nil, nil, nil, nil, nil)
 	if ok {
 		t.Error("ok should be false when gc/filterSvc are missing")
 	}

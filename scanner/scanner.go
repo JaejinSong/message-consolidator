@@ -271,7 +271,14 @@ func performGmailScan(ctx context.Context, email string, wg *sync.WaitGroup) err
 		handled, _ := deps.completionSvc.ProcessPotentialCompletion(ctx, msg)
 		return handled
 	}
-	ids := channels.ScanGmail(ctx, email, "Korean", cfg, deps.gClient, deps.filterSvc, onThreadActivity)
+	// Why: channels cannot import services' completion wiring, so the reminder guard is injected like onThreadActivity.
+	reminderGuard := func(ctx context.Context, item store.TodoItem, msg store.ConsolidatedMessage) bool {
+		if deps.completionSvc == nil {
+			return false
+		}
+		return deps.completionSvc.IsReminderOfDone(ctx, item, msg)
+	}
+	ids := channels.ScanGmail(ctx, email, "Korean", cfg, deps.gClient, deps.filterSvc, onThreadActivity, reminderGuard)
 
 	// Why: previously these keys were never released (mismatched ReleaseInFlight key
 	// format), leaking unbounded map entries and permanently skipping any repeated

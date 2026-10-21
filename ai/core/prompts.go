@@ -31,6 +31,7 @@ const (
 	PromptChatSystem           PromptName = "chat_system.prompt"
 	PromptChatUser             PromptName = "chat_user.prompt"
 	PromptCompletionCheck      PromptName = "completion_check.prompt"
+	PromptFollowupCheck        PromptName = "followup_check.prompt"
 	PromptGmailSystem          PromptName = "gmail_system.prompt"
 	PromptGmailUser            PromptName = "gmail_user.prompt"
 	PromptIdentityGroupMerge   PromptName = "identity_group_merge.prompt"

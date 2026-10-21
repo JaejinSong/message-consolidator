@@ -277,3 +277,7 @@ func TestReassessGmailThread_UsesFetchSeamNoNetwork(t *testing.T) {
 		t.Fatalf("expected EvaluateTaskTransition called once for the single candidate reply, got %d", fa.callCount)
 	}
 }
+
+func (f *fakeAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+}

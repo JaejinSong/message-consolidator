@@ -253,3 +253,7 @@ func TestEvaluateReplyAgainstTask_UnresolvedSenderFallsBackToSlackID_stillRecord
 		t.Errorf("speaker = %q, want the resolved fallback %q", rows[0].Speaker, fallbackSpeaker)
 	}
 }
+
+func (f *fakeAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+}

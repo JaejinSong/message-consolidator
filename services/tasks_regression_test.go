@@ -162,3 +162,7 @@ func TestConversationalTaskLifecycle_Regression(t *testing.T) {
 func ptr[T any](v T) *T {
 	return &v
 }
+
+func (m *RegressionMockAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+}

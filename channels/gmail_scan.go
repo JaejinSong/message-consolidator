@@ -16,7 +16,11 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool) []store.MessageID {
+// ReminderGuard reports whether a would-be new task only reminds of an already-closed one.
+// Why: defined here so channels never imports scanner/completion wiring; scanner injects the implementation.
+type ReminderGuard func(ctx context.Context, item store.TodoItem, msg store.ConsolidatedMessage) bool
+
+func ScanGmail(ctx context.Context, email string, language string, cfg *config.Config, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool, reminderGuard ReminderGuard) []store.MessageID {
 	svc, err := GetGmailService(ctx, email)
 	if err != nil {
 		// Why: Warn, not Debug — production suppresses Debug, and a dead token
@@ -39,7 +43,7 @@ func ScanGmail(ctx context.Context, email string, language string, cfg *config.C
 	var newIDs []store.MessageID
 	analyzeOK := true
 	if len(rawMsgs) > 0 {
-		newIDs, analyzeOK = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, gc, filterSvc, onThreadActivity)
+		newIDs, analyzeOK = analyzeAndSaveEmails(ctx, email, language, rawMsgs, clsMap, toMap, gc, filterSvc, onThreadActivity, reminderGuard)
 	}
 
 	// Why: A failed Get/Analyze leaves messages unmarked; advancing the cursor past them
@@ -306,7 +310,7 @@ func deduplicateEnvelopes(ctx context.Context, email string, rawMsgs []types.Raw
 	return result
 }
 
-func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
+func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs []types.RawMessage, classificationMap map[string]string, toMap map[string]string, gc *ai.GeminiClient, filterSvc noiseFilter, onThreadActivity func(store.ConsolidatedMessage) bool, reminderGuard ReminderGuard) ([]store.MessageID, bool) {
 	if gc == nil || filterSvc == nil {
 		logger.Errorf("[GMAIL] gc/filterSvc missing; scanner.Init may have failed")
 		return nil, false
@@ -328,7 +332,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 		if end > len(rawMsgs) {
 			end = len(rawMsgs)
 		}
-		ids, batchOK := processBatch(ctx, gc, filterSvc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity)
+		ids, batchOK := processBatch(ctx, gc, filterSvc, email, language, rawMsgs[i:end], classificationMap, toMap, user, aliases, onThreadActivity, reminderGuard)
 		if !batchOK {
 			ok = false
 		}
@@ -338,7 +342,7 @@ func analyzeAndSaveEmails(ctx context.Context, email, language string, rawMsgs [
 }
 
 // processBatch handles the analysis and persistence of a single batch of emails.
-func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc noiseFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool) ([]store.MessageID, bool) {
+func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc noiseFilter, email, language string, batchMsgs []types.RawMessage, classificationMap, toMap map[string]string, user *store.User, aliases []string, onThreadActivity func(store.ConsolidatedMessage) bool, reminderGuard ReminderGuard) ([]store.MessageID, bool) {
 	filteredMsgs := filterGmailBatch(ctx, email, batchMsgs, filterSvc, classificationMap, onThreadActivity)
 	if len(filteredMsgs) == 0 {
 		return nil, true
@@ -370,8 +374,9 @@ func processBatch(ctx context.Context, gc *ai.GeminiClient, filterSvc noiseFilte
 
 	routed := processGeminiItems(ctx, email, user, aliases, items, classificationMap, toMap, msgMap)
 	created := map[string]bool{}
+	guarded := withReminderGuard(reminderGuard, services.HandleTaskState)
 	track := func(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
-		id, err := services.HandleTaskState(ctx, q, email, item, msg)
+		id, err := guarded(ctx, q, email, item, msg)
 		if id > 0 {
 			created[msg.SourceTS] = true
 		}
@@ -395,6 +400,20 @@ func linkGmailFilterOutcomes(ctx context.Context, email string, msgs []types.Raw
 // (post-ApplyExtractionGuard) item rather than the raw AI item, without depending
 // on services' DB-backed HandleTaskState.
 type taskStateRouter func(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error)
+
+// withReminderGuard short-circuits creation when the guard says the item only reminds of a closed task.
+// Why: returns id 0 so the message is not counted as a created task (filter outcome, translation, cursor accounting).
+func withReminderGuard(guard ReminderGuard, route taskStateRouter) taskStateRouter {
+	if guard == nil {
+		return route
+	}
+	return func(ctx context.Context, q store.Querier, email string, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
+		if guard(ctx, item, msg) {
+			return 0, nil
+		}
+		return route(ctx, q, email, item, msg)
+	}
+}
 
 // routeGeminiItems dispatches each guarded item/message pair to route in order.
 func routeGeminiItems(ctx context.Context, email string, routed []routedGeminiItem, route taskStateRouter) []store.MessageID {

@@ -195,3 +195,7 @@ func TestEvaluateReplyAgainstTask_dryRunRecordsButNeverWrites(t *testing.T) {
 		t.Error("dry run must never modify the task")
 	}
 }
+
+func (f *fakeAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+}

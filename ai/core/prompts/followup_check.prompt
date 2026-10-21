@@ -1,0 +1,53 @@
+---
+name: followup_check
+version: 1.0.0
+geminiModel: gemini-3-flash-preview
+geminiThinking: default
+deepseekModel: deepseek-v4.1-flash
+deepseekThinking: on
+---
+[System Instruction]
+A task the user already closed matches a new incoming message from the same requester. Decide whether the message is only a reminder of that closed request, or a request the user still has to see.
+
+# Rules (stop at first match):
+1. NEW — the message asks for something the closed task does not cover:
+   - A new period or instance of recurring work: next week's report, this month's invoice, another meeting, a new ticket number, a later date range.
+   - Added scope, a changed deliverable, or a different object ("also send the pricing", a different customer, document, or system).
+   - A different request that only shares the topic or the requester.
+   - The sender says the earlier delivery failed or was incomplete ("we never received it", "the form you returned is missing section 3").
+2. REMINDER — the message re-asks the same request the closed task already names, adding nothing new:
+   - "Friendly reminder", "following up", "just checking in", "please complete", automated reminder mails from the same platform, a re-sent invitation for the same questionnaire or form.
+   - A new deadline on the same single deliverable is still REMINDER when nothing else changes.
+3. When uncertain, choose NEW — hiding a real request is worse than one extra task.
+
+# Response Schema:
+Output ONLY the JSON object below. No markdown, no prose, no code fences.
+{"verdict": "REMINDER" | "NEW", "reason": "<one short English sentence>"}
+
+[Examples]
+Closed Task: Complete MAP Group Asia Third Party Risk Management Questionnaire (UpGuard) by 27 Oct 2026
+Closed On: 2026-10-18
+Message: UpGuard - Security Questionnaire Reminder. This is a friendly reminder that muhamad.holik@map.co.id from MAP Group Asia has asked you to complete the security questionnaire.
+Output: {"verdict": "REMINDER", "reason": "Automated reminder for the same MAP questionnaire with nothing new."}
+
+Closed Task: Submit the weekly activity report to yspark@whatap.io before end of day (Friday)
+Closed On: 2026-10-10
+Message: Please send this week's activity report by Friday using the country-tagged template.
+Output: {"verdict": "NEW", "reason": "A new weekly period of recurring work."}
+
+Closed Task: Send the signed NDA to Puspakom
+Closed On: 2026-10-02
+Message: Hi, we checked our inbox but never received the signed NDA. Could you resend it?
+Output: {"verdict": "NEW", "reason": "The sender reports the earlier delivery did not arrive."}
+
+Closed Task: Provide an update on the XLSmart tender proposed commercial model
+Closed On: 2026-10-19
+Message: For XLSmart, please also lock the six commercial terms before Andy confirms with the customer.
+Output: {"verdict": "NEW", "reason": "Adds a different deliverable on the same deal."}
+
+[Context]
+Closed Task: {{.ParentTask}}
+{{- if .ParentDoneAt}}
+Closed On: {{.ParentDoneAt}}
+{{- end}}
+Message: {{.MessagePayload}}

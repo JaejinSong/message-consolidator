@@ -15,6 +15,7 @@ type AICompleter interface {
 	AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error)
 	EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (ai.TaskTransition, error)
 	Analyze(ctx context.Context, email string, msg types.EnrichedMessage, language string, source, room string) ([]store.TodoItem, error)
+	EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error)
 }
 
 type TaskStore interface {

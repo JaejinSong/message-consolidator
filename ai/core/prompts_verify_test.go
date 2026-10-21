@@ -917,3 +917,48 @@ func TestChatSystemSelfReportExchangeRules(t *testing.T) {
 		}
 	}
 }
+
+// TestFollowupCheckPromptPins guards the NEW-biased contract. Why: wrongly absorbing a real
+// request into a closed task hides it from the user, so uncertainty must resolve to NEW.
+func TestFollowupCheckPromptPins(t *testing.T) {
+	t.Parallel()
+	content, err := os.ReadFile("prompts/followup_check.prompt")
+	if err != nil {
+		t.Fatalf("read followup_check: %v", err)
+	}
+	for _, token := range []string{"When uncertain, choose NEW", "A new period or instance of recurring work"} {
+		if !strings.Contains(string(content), token) {
+			t.Errorf("followup_check.prompt missing phrase: %q", token)
+		}
+	}
+}
+
+// TestFollowupCheckRendersClosedOn pins the optional Closed On line.
+func TestFollowupCheckRendersClosedOn(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		doneAt string
+		want   bool
+	}{
+		{"closed date given renders line", "2026-10-18", true},
+		{"empty closed date omits line", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out, err := LoadPrompt(PromptFollowupCheck).Render(ExtractionContext{
+				ParentTask: "Send report", ParentDoneAt: tc.doneAt, MessagePayload: "reminder",
+			})
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			// Why: the examples also contain "Closed On:", so match the context block only.
+			got := strings.Contains(out, "Closed Task: Send report\nClosed On: "+tc.doneAt+"\nMessage: reminder")
+			noLine := strings.Contains(out, "Closed Task: Send report\nMessage: reminder")
+			if tc.want != got || tc.want == noLine {
+				t.Errorf("Closed On line present = %v (bare form = %v), want present=%v", got, noLine, tc.want)
+			}
+		})
+	}
+}

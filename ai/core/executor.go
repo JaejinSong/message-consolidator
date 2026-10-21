@@ -19,6 +19,7 @@ type ExtractionContext struct {
 	CurrentUserEmail string       //Why: Provides the primary email of the user for strict identity mapping.
 	CurrentUserID    store.UserID //Why: Securely identifies the user for internal DB assignee mapping logic.
 	ParentTask       string       //Why: Context for completion/update evaluation threads.
+	ParentDoneAt     string       //Why: Close date of the already-done parent so followup_check can tell a reminder of that request from a new period of work; empty omits the line.
 	ParentAssignee   string       //Why: Current owner of the parent task so completion_check can tell a reassignment from a no-op.
 	SubtasksContext  string       //Why: Formatted subtask checklist injected into completion_check prompt when ≤5 subtasks; empty string omits the section.
 	StaleThreshold   int          //Why: Working-day cutoff for the report_summary Stalled Tasks rule; 0 omits the deterministic clause.

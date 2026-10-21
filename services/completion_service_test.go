@@ -20,6 +20,20 @@ type MockAI struct {
 	// fallback-extraction path never fires (confirm-first must not extract).
 	AnalyzeCallCount   int
 	LastParentAssignee string // parentAssignee passed on the most recent EvaluateTaskTransition call
+
+	Followup          ai.FollowupVerdict // returned by EvaluateFollowup
+	FollowupErr       error
+	FollowupCallCount int
+	LastFollowupTask  string // closedTask passed on the most recent EvaluateFollowup call
+}
+
+func (m *MockAI) EvaluateFollowup(ctx context.Context, email, closedTask, closedOn, messageText string) (ai.FollowupVerdict, error) {
+	m.FollowupCallCount++
+	m.LastFollowupTask = closedTask
+	if m.Followup.Verdict == "" && m.FollowupErr == nil {
+		return ai.FollowupVerdict{Verdict: ai.FollowupNew}, nil
+	}
+	return m.Followup, m.FollowupErr
 }
 
 func (m *MockAI) AnalyzeWithContext(ctx context.Context, email string, msg types.EnrichedMessage, language, source, room string, tasks []store.ConsolidatedMessage) ([]store.TodoItem, error) {
