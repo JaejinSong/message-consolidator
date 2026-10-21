@@ -297,12 +297,36 @@ func GetDB() *sql.DB {
 	return conn
 }
 
+const (
+	txMaxAttempts    = 3
+	txRetryBaseDelay = 101 * time.Millisecond
+)
+
 // RunInTx executes a database transaction and automatically rolls it back if an error occurs.
-// Why: Enforces consistent transaction management across the gamification domain to ensure data integrity.
+// Why: a lock error mid-tx is usually SQLITE_BUSY_SNAPSHOT (stale read snapshot), which can only be
+// cured by rolling back and re-running the whole tx, so fn may execute more than once and must be idempotent.
 func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	var err error
+	for attempt := 1; attempt <= txMaxAttempts; attempt++ {
+		err = runTxOnce(ctx, fn)
+		if err == nil || !isLockError(err) || attempt == txMaxAttempts {
+			return err
+		}
+		delay := txRetryBaseDelay * (1 << (attempt - 1))
+		logger.Warnf("[DB] tx lock error (attempt %d/%d), retrying in %v: %v", attempt, txMaxAttempts, delay, err)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("tx retry aborted (last: %v): %w", err, ctx.Err())
+		case <-time.After(delay):
+		}
+	}
+	return err
+}
+
+func runTxOnce(ctx context.Context, fn func(tx *sql.Tx) error) error {
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
-		return err
+		return fmt.Errorf("begin tx: %w", err)
 	}
 
 	if err := fn(tx); err != nil {
@@ -310,7 +334,10 @@ func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
 }
 
 // LogDBStats outputs current connection pool statistics for monitoring.

@@ -67,15 +67,14 @@ func SaveMessage(ctx context.Context, q Querier, msg ConsolidatedMessage) (bool,
 		return false, matchedID, nil
 	}
 
-	// Why: libsql/Turso has no app-side busy_timeout (PRAGMA only applies to file: DSN),
-	// so concurrent writers from parallel channel scans surface SQLITE_BUSY immediately.
-	// Retry covers the transient window without long-held tx pressure.
 	var lastID int64
-	err := WithDBRetry("CreateMessage", func() error {
+	insert := func() error {
 		var e error
 		lastID, e = db.New(q).CreateMessage(ctx, toCreateMessageParams(msg))
 		return e
-	})
+	}
+	// Why: libsql/Turso has no app-side busy_timeout, so autocommit writers surface SQLITE_BUSY immediately.
+	err := retryOutsideTx(q, "CreateMessage", insert)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			logSaveDrop(msg, "insert hit ON CONFLICT DO NOTHING")

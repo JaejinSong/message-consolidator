@@ -9,13 +9,19 @@ import (
 )
 
 func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []MessageID, destID MessageID, newTitle string) error {
-	conn := GetDB()
-	tx, err := conn.BeginTx(ctx, nil)
+	err := RunInTx(ctx, func(tx *sql.Tx) error {
+		return mergeTasksInTx(ctx, tx, email, targetIDs, destID, newTitle)
+	})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
+	// Why: Full invalidation — MergeTasks sets category='merged' on source tasks,
+	// which flips is_archived to 1, moving them from active to archive cache.
+	InvalidateCache(email)
+	return nil
+}
 
+func mergeTasksInTx(ctx context.Context, tx *sql.Tx, email string, targetIDs []MessageID, destID MessageID, newTitle string) error {
 	allIDs := append([]MessageID{}, targetIDs...)
 	allIDs = append(allIDs, destID)
 	msgs, err := GetMessagesByIDs(ctx, tx, email, allIDs)
@@ -31,25 +37,16 @@ func MergeTasksWithTitle(ctx context.Context, email string, targetIDs []MessageI
 	// Why: Final guard against empty/whitespace title leaking from upstream.
 	// An empty task field hides the row from the active list (filter
 	// `IFNULL(task,'') != ''`) so the merge would silently lose it.
-	if strings.TrimSpace(newTitle) == "" {
-		newTitle = dest.Task
+	title := newTitle
+	if strings.TrimSpace(title) == "" {
+		title = dest.Task
 	}
-	if strings.TrimSpace(newTitle) == "" {
+	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("merge aborted: refusing to set empty task on dest=%d", destID)
 	}
 
 	history := buildMergeHistory(dest.Task, sources)
-	if err := applyMergeTransaction(ctx, tx, email, dest.Room, targetIDs, dest.ID, newTitle, history); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	// Why: Full invalidation — MergeTasks sets category='merged' on source tasks,
-	// which flips is_archived to 1, moving them from active to archive cache.
-	InvalidateCache(email)
-	return nil
+	return applyMergeTransaction(ctx, tx, email, dest.Room, targetIDs, dest.ID, title, history)
 }
 
 func toInt64List(ids []MessageID) []int64 {

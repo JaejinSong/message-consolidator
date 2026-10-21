@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"message-consolidator/db"
+	"message-consolidator/logger"
 	"slices"
 
 	"github.com/whatap/go-api/trace"
@@ -99,40 +100,48 @@ func LinkContact(ctx context.Context, tenantEmail string, masterID, targetID int
 	if masterID == targetID {
 		return fmt.Errorf("cannot link a contact to itself")
 	}
-	tx, err := GetDB().BeginTx(ctx, nil)
+	var effectiveMasterID int64
+	err := RunInTx(ctx, func(tx *sql.Tx) error {
+		// Why: RunInTx may re-run this closure, so resolve from the caller's masterID each attempt, never a prior result.
+		resolved, err := linkContactInTx(ctx, tx, tenantEmail, masterID, targetID)
+		effectiveMasterID = resolved
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
+	// Why: in-memory DSU must only reflect committed links; a rolled-back or retried tx must not leave a union behind.
+	GlobalContactDSU.Union(effectiveMasterID, targetID)
+	if err := db.New(GetDB()).UpdateResolutionContactID(ctx, db.UpdateResolutionContactIDParams{
+		ContactID:   effectiveMasterID,
+		TenantEmail: tenantEmail,
+		ContactID_2: targetID,
+	}); err != nil {
+		logger.Warnf("[CONTACTS] link committed but resolution update failed master=%d target=%d: %v", effectiveMasterID, targetID, err)
+	}
+	return nil
+}
 
+func linkContactInTx(ctx context.Context, tx *sql.Tx, tenantEmail string, masterID, targetID int64) (int64, error) {
 	masterID, masterType, err := resolveEffectiveMaster(ctx, tx, tenantEmail, masterID, targetID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	q := db.New(tx)
 	targetRow, err := q.GetContactTypeByID(ctx, db.GetContactTypeByIDParams{ID: targetID, TenantEmail: tenantEmail})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	targetType := targetRow.String
-	if err := applyLinkUpdates(ctx, tx, tenantEmail, masterID, targetID, masterType, targetType); err != nil {
-		return err
+	if err := applyLinkUpdates(ctx, tx, tenantEmail, masterID, targetID, masterType, targetRow.String); err != nil {
+		return 0, err
 	}
 	if err := q.FlattenContactChildren(ctx, db.FlattenContactChildrenParams{MasterContactID: sql.NullInt64{Int64: masterID, Valid: true}, MasterContactID_2: sql.NullInt64{Int64: targetID, Valid: true}, TenantEmail: tenantEmail}); err != nil {
-		return err
+		return 0, err
 	}
 	if slaveName, err := q.GetDisplayNameByID(ctx, targetID); err == nil && slaveName != "" {
 		_ = q.UpdateDisplayNameIfEmpty(ctx, db.UpdateDisplayNameIfEmptyParams{DisplayName: slaveName, ID: masterID, TenantEmail: tenantEmail})
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	_ = db.New(GetDB()).UpdateResolutionContactID(ctx, db.UpdateResolutionContactIDParams{
-		ContactID:   masterID,
-		TenantEmail: tenantEmail,
-		ContactID_2: targetID,
-	})
-	return nil
+	return masterID, nil
 }
 
 func resolveEffectiveMaster(ctx context.Context, tx *sql.Tx, tenantEmail string, masterID, targetID int64) (int64, string, error) {
@@ -177,7 +186,6 @@ func applyLinkUpdates(ctx context.Context, tx *sql.Tx, tenantEmail string, maste
 		TargetContactID: masterID,
 		Reason:          "Manual Link",
 	})
-	GlobalContactDSU.Union(masterID, targetID)
 	return nil
 }
 

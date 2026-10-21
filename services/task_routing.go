@@ -120,16 +120,20 @@ func handleNone(ctx context.Context, email string, item store.TodoItem, msg stor
 }
 
 // autoRestoreExcluded un-parks a tracking-excluded task before applying inbound updates.
-// Why: best-effort — a restore failure must not block the content update itself.
-func autoRestoreExcluded(ctx context.Context, q store.Querier, email string, id store.MessageID) {
+// Why: best-effort, except lock errors propagate so RunInTx re-runs the tx instead of committing without the restore.
+func autoRestoreExcluded(ctx context.Context, q store.Querier, email string, id store.MessageID) error {
 	restored, err := store.AutoRestoreIfExcluded(ctx, q, email, id)
 	if err != nil {
+		if store.IsLockError(err) {
+			return err
+		}
 		logger.Warnf("[ROUTER] auto-restore excluded failed msg=%d: %v", id, err)
-		return
+		return nil
 	}
 	if restored {
 		logger.Infof("[ROUTER] excluded task auto-restored by new activity msg=%d", id)
 	}
+	return nil
 }
 
 func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
@@ -150,7 +154,9 @@ func handleNew(ctx context.Context, q store.Querier, item store.TodoItem, msg st
 
 // Why: Whichever path lands on an existing task ID applies the same text+subtask update; consolidate so handleNew has one branch instead of two.
 func updateExistingTask(ctx context.Context, q store.Querier, email string, id store.MessageID, task string, subtasks []store.Subtask) (store.MessageID, error) {
-	autoRestoreExcluded(ctx, q, email, id)
+	if err := autoRestoreExcluded(ctx, q, email, id); err != nil {
+		return id, err
+	}
 	err := store.UpdateTaskText(ctx, q, email, id, task)
 	if err == nil && len(subtasks) > 0 {
 		if subErr := store.UpdateSubtasks(ctx, q, email, id, subtasks); subErr != nil {
@@ -206,7 +212,9 @@ var chatContainerThreadSources = map[string]bool{
 }
 
 func attachThreadParentSubtask(ctx context.Context, q store.Querier, msg store.ConsolidatedMessage, parent store.ConsolidatedMessage, task string) (store.MessageID, error) {
-	autoRestoreExcluded(ctx, q, msg.UserEmail, parent.ID)
+	if err := autoRestoreExcluded(ctx, q, msg.UserEmail, parent.ID); err != nil {
+		return parent.ID, err
+	}
 	merged := mergeThreadSubtasks(parent, msg.Subtasks, task, msg.Assignee)
 	if len(merged) == len(parent.Subtasks) {
 		return parent.ID, nil
@@ -296,12 +304,10 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 	var dropped bool
 	err := runTaskTx(ctx, q, func(q store.Querier) error {
 		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
-		if err != nil {
+		// Why: RunInTx may re-run this closure after a lock error, so a failed attempt must not leave dropped=true behind.
+		dropped = err == nil && existing == nil
+		if err != nil || existing == nil {
 			return err
-		}
-		if existing == nil {
-			dropped = true
-			return nil
 		}
 		return applyTaskUpdates(ctx, q, email, id, item, msg, existing, normalizedAssignee)
 	})
@@ -312,7 +318,9 @@ func handleUpdate(ctx context.Context, q store.Querier, email string, item store
 }
 
 func applyTaskUpdates(ctx context.Context, q store.Querier, email string, id store.MessageID, item store.TodoItem, msg store.ConsolidatedMessage, existing *store.ConsolidatedMessage, normalizedAssignee string) error {
-	autoRestoreExcluded(ctx, q, email, id)
+	if err := autoRestoreExcluded(ctx, q, email, id); err != nil {
+		return err
+	}
 	if len(item.Subtasks) > 0 {
 		if err := store.UpdateSubtasks(ctx, q, email, id, mapTodoSubtasksToStore(item.Subtasks)); err != nil {
 			return err
@@ -366,8 +374,9 @@ func handleResolve(ctx context.Context, q store.Querier, email string, item stor
 
 	err := runTaskTx(ctx, q, func(q store.Querier) error {
 		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+		// Why: RunInTx may re-run this closure after a lock error, so a failed attempt must not leave dropped=true behind.
+		dropped = err == nil && existing == nil
 		if err != nil || existing == nil {
-			dropped = true
 			return err
 		}
 		if err := store.MarkMessageDone(ctx, q, email, id, true); err != nil {
@@ -438,8 +447,9 @@ func handleCancel(ctx context.Context, q store.Querier, email string, item store
 
 	err := runTaskTx(ctx, q, func(q store.Querier) error {
 		existing, err := validateTargetTask(ctx, q, email, id, msg.Room)
+		// Why: RunInTx may re-run this closure after a lock error, so a failed attempt must not leave dropped=true behind.
+		dropped = err == nil && existing == nil
 		if err != nil || existing == nil {
-			dropped = true
 			return err
 		}
 		return store.DeleteMessages(ctx, q, email, []store.MessageID{id})

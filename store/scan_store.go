@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -9,6 +10,37 @@ import (
 	"strings"
 	"time"
 )
+
+// isLockError reports SQLite lock contention (SQLITE_BUSY and its snapshot variant).
+func isLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "database is locked") || strings.Contains(errStr, "SQLITE_BUSY")
+}
+
+// IsLockError lets callers outside store propagate lock errors so RunInTx can re-run the whole tx.
+func IsLockError(err error) bool {
+	return isLockError(err)
+}
+
+// retryOutsideTx applies statement-level retry only for autocommit queriers.
+// Why: inside a tx a lock is a stale snapshot that statement retry cannot cure; RunInTx re-runs the whole tx.
+func retryOutsideTx(q Querier, operationName string, fn func() error) error {
+	if _, inTx := q.(*sql.Tx); inTx {
+		return fn()
+	}
+	return WithDBRetry(operationName, fn)
+}
+
+func isTransientDBError(err error) bool {
+	if isLockError(err) {
+		return true
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "connection refused") || strings.Contains(errStr, "handshake failed")
+}
 
 // WithDBRetry executes a database operation with exponential backoff,
 // designed to gracefully handle serverless DB (NeonDB) cold starts.
@@ -24,13 +56,7 @@ func WithDBRetry(operationName string, fn func() error) error {
 		}
 
 		// Why: Only retry on transient database errors (like SQLITE_BUSY or connection reset).
-		errStr := err.Error()
-		isTransient := strings.Contains(errStr, "database is locked") ||
-			strings.Contains(errStr, "SQLITE_BUSY") ||
-			strings.Contains(errStr, "connection refused") ||
-			strings.Contains(errStr, "handshake failed")
-
-		if !isTransient {
+		if !isTransientDBError(err) {
 			return err
 		}
 

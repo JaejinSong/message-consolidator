@@ -470,25 +470,61 @@ func (l *lockOnceQuerier) ExecContext(ctx context.Context, query string, args ..
 	return l.Querier.ExecContext(ctx, query, args...)
 }
 
-func TestAutoRestoreIfExcluded_RetriesOnDatabaseLocked(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
-	if err != nil {
-		t.Fatalf("setup db: %v", err)
+func TestAutoRestoreIfExcluded_LockErrorHandling(t *testing.T) {
+	tests := []struct {
+		name         string
+		useTx        bool
+		wantRestored bool
+		wantErr      bool
+		wantAttempts int32
+	}{
+		{"autocommit caller retries the statement and restores", false, true, false, 2},
+		{"inside tx the lock error propagates without statement retry", true, false, true, 1},
 	}
-	defer cleanup()
-	ctx := context.Background()
-	email := testutil.RandomEmail("lock")
-	id := seedExclusionTask(t, email, "Locked restore task", 35, "{}")
-	if err := ConfirmExclusion(ctx, GetDB(), email, id); err != nil {
-		t.Fatalf("confirm: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			setupStoreTestDB(t)
+			ctx := context.Background()
+			email := testutil.RandomEmail("lock")
+			id := seedExclusionTask(t, email, "Locked restore task", 35, "{}")
+			if err := ConfirmExclusion(ctx, GetDB(), email, id); err != nil {
+				t.Fatalf("confirm: %v", err)
+			}
+			var q Querier
+			var once *lockOnceQuerier
+			if tt.useTx {
+				armLockOnceTrigger(t, `CREATE TRIGGER test_lock_update BEFORE UPDATE ON messages BEGIN SELECT test_lock_once(); END`)
+				tx, err := GetDB().BeginTx(ctx, nil)
+				if err != nil {
+					t.Fatalf("begin: %v", err)
+				}
+				defer func() { _ = tx.Rollback() }()
+				q = tx
+			} else {
+				once = &lockOnceQuerier{Querier: GetDB()}
+				q = once
+			}
 
-	q := &lockOnceQuerier{Querier: GetDB()}
-	restored, err := AutoRestoreIfExcluded(ctx, q, email, id)
-	if err != nil {
-		t.Fatalf("expected retry to succeed, got %v", err)
-	}
-	if !restored || q.calls != 2 {
-		t.Fatalf("restored=%v calls=%d, want true after 2 calls", restored, q.calls)
+			// Act
+			restored, err := AutoRestoreIfExcluded(ctx, q, email, id)
+
+			// Assert
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err=%v, wantErr=%v", err, tt.wantErr)
+			}
+			if tt.wantErr && !IsLockError(err) {
+				t.Errorf("expected lock error, got %v", err)
+			}
+			if restored != tt.wantRestored {
+				t.Errorf("restored=%v, want %v", restored, tt.wantRestored)
+			}
+			if once != nil && int32(once.calls) != tt.wantAttempts {
+				t.Errorf("attempts=%d, want %d", once.calls, tt.wantAttempts)
+			}
+			if tt.useTx && lockOnceCalls.Load() != tt.wantAttempts {
+				t.Errorf("injected lock firings=%d, want %d (single attempt)", lockOnceCalls.Load(), tt.wantAttempts)
+			}
+		})
 	}
 }
