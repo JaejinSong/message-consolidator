@@ -29,8 +29,10 @@ func InitAIInferenceLogger() {
 	_ = os.MkdirAll(dir, 0755)
 
 	// Why: Initialize standard AI logger pointing to a dedicated file for ease of analysis and isolation from general application logs.
+	aiLogPath := fmt.Sprintf("%s/ai_inference.log", dir)
+	ensureLogFileReadable(aiLogPath)
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   fmt.Sprintf("%s/ai_inference.log", dir),
+		Filename:   aiLogPath,
 		MaxSize:    aiLogMaxSizeMB,
 		MaxBackups: aiLogMaxBackups,
 		MaxAge:     aiLogMaxAgeDays,
