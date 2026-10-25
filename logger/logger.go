@@ -118,7 +118,7 @@ func StartLogRotator(ctx context.Context, lumberjackLogger *lumberjack.Logger) {
 				return
 			case <-timer.C:
 				Infof("[LOG] Rotating log file for new day...")
-				if err := lumberjackLogger.Rotate(); err != nil {
+				if err := rotateReadable(lumberjackLogger); err != nil {
 					Errorf("[LOG] Error rotating log: %v", err)
 				}
 			}

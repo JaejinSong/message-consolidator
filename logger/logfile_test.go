@@ -22,7 +22,10 @@ func useLogDir(t *testing.T, dir string) {
 	t.Helper()
 	t.Setenv("LOG_DIR", dir)
 	prev := log.Writer()
-	t.Cleanup(func() { log.SetOutput(prev) })
+	t.Cleanup(func() {
+		log.SetOutput(prev)
+		aiInferenceLogger = nil
+	})
 }
 
 func TestInitLogging_MissingFilesCreatedWorldReadable(t *testing.T) {
@@ -80,7 +83,8 @@ func TestInitLogging_RotatedActiveFileStaysWorldReadable(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		gz, _ := filepath.Glob(filepath.Join(dir, "app-*.log.gz"))
-		if len(gz) == 1 {
+		raw, _ := filepath.Glob(filepath.Join(dir, "app-*.log"))
+		if len(gz) == 1 && len(raw) == 0 {
 			if got := modeOf(t, gz[0]); got != 0644 {
 				t.Errorf("compressed backup mode = %o, want 644", got)
 			}
@@ -89,4 +93,24 @@ func TestInitLogging_RotatedActiveFileStaysWorldReadable(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Error("compressed backup did not appear")
+}
+
+func TestRotateReadable_RecreatesDeletedFileWorldReadable(t *testing.T) {
+	dir := t.TempDir()
+	useLogDir(t, dir)
+
+	lj := InitLogging()
+	defer lj.Close()
+	path := filepath.Join(dir, "app.log")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := rotateReadable(lj); err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+
+	if got := modeOf(t, path); got != 0644 {
+		t.Errorf("app.log mode = %o, want 644", got)
+	}
 }

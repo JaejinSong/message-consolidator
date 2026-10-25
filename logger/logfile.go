@@ -1,8 +1,9 @@
 package logger
 
 import (
-	"fmt"
 	"os"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const logFileMode os.FileMode = 0644
@@ -20,6 +21,12 @@ func ensureLogFileReadable(path string) {
 	}
 	// Why: umask can strip the create mode, and pre-existing files keep their old mode.
 	if err := os.Chmod(path, logFileMode); err != nil {
-		Warnf("[LOG] %s", fmt.Errorf("chmod log file %s: %w", path, err))
+		Warnf("[LOG] chmod log file %s: %v", path, err)
 	}
+}
+
+// Why: a log file deleted while running is recreated 0600 by lumberjack, so re-assert the mode before each rotation.
+func rotateReadable(lj *lumberjack.Logger) error {
+	ensureLogFileReadable(lj.Filename)
+	return lj.Rotate()
 }
