@@ -46,7 +46,9 @@ import { parseTranslatedText } from './logic';
 import { POLLING_INTERVALS } from './constants';
 import { authService } from './services/authService';
 
-let lastMessageDataHash = '';
+let messageRequestSeq = 0;
+let isFetchingUserProfile = false;
+const pendingSubtaskUpdates = new Set<string>();
 const activeTimers: ReturnType<typeof setTimeout>[] = [];
 
 /**
@@ -240,16 +242,24 @@ const handlers: ServiceHandlers = {
     }, { triggerAuthOverlay: true }),
     onToggleSubtask: safeAsync(async (taskIdStr: string, subtaskIndex: number, done: boolean) => {
         const taskId = Number(taskIdStr);
-        
-        // 1. Optimistic Update
+        const previousDone = getTaskById(taskId)?.subtasks?.[subtaskIndex]?.done;
+        const key = `${taskId}:${subtaskIndex}`;
+        if (previousDone === undefined || pendingSubtaskUpdates.has(key)) return;
+
+        pendingSubtaskUpdates.add(key);
         updateSubtaskStateInState(taskId, subtaskIndex, done);
         updateSubtaskNodeStatus(taskId, subtaskIndex, done);
-
+        const optimisticSubtask = getTaskById(taskId)?.subtasks?.[subtaskIndex];
         try {
             await api.toggleSubtask(taskIdStr, subtaskIndex, done);
         } catch {
             showToast(state.currentLang === 'ko' ? '서브태스크 업데이트 실패' : 'Failed to update subtask', 'error');
-            // Rollback
+            if (getTaskById(taskId)?.subtasks?.[subtaskIndex] !== optimisticSubtask) return;
+            updateSubtaskStateInState(taskId, subtaskIndex, previousDone);
+            const task = getTaskById(taskId);
+            if (task) updateMessageCard(task);
+        } finally {
+            pendingSubtaskUpdates.delete(key);
         }
     }, { triggerAuthOverlay: true })
 };
@@ -274,31 +284,35 @@ const updateMergeBar = () => {
  * Fetches and renders messages with robust locking.
  */
 const fetchMessages = safeAsync(async (bypassVisibility: boolean = false) => {
-    // Robust Lock: Prevent concurrent fetches even if visibility is bypassed
-    if (state.isFetchingMessages || (!bypassVisibility && document.hidden)) return;
-    
+    if (!bypassVisibility && (state.isFetchingMessages || document.hidden)) return;
+
+    const seq = ++messageRequestSeq;
+    const query = state.taskSearchQuery;
+    const lang = state.currentLang;
+    const useFts = [...query.trim()].length >= 3;
     state.isFetchingMessages = true;
     try {
-        const data = await api.fetchMessages(state.currentLang);
-        const categorized: CategorizedMessages = data.messages || data;
-        
-        // Simple change detection to avoid redundant triggers
-        const currentHash = JSON.stringify(categorized);
-        const hasChanged = currentHash !== lastMessageDataHash;
-        lastMessageDataHash = currentHash;
+        const data: CategorizedMessages & { messages?: CategorizedMessages, user?: UserProfile } = useFts
+            ? await api.searchActiveMessages(query, lang)
+            : await api.fetchMessages(lang);
+        if (seq !== messageRequestSeq) return;
 
-        if (data.user) updateStats(data.user);
+        const categorized = data.messages || data;
+        if (!useFts && 'user' in data && data.user) updateStats(data.user);
+        state.isTaskSearchResult = useFts;
         updateMessages(categorized);
-        renderMessages(categorized);
-        
-        // Auto-translate if visibility bypassed (tab switch, manual sync) OR if new content found
-        if (bypassVisibility || hasChanged) {
-            triggerBatchTranslation();
-        }
+        renderMessages(state.messages);
+        triggerBatchTranslation();
+    } catch (error) {
+        if (seq !== messageRequestSeq) return;
+        throw error;
     } finally {
-        state.isFetchingMessages = false;
+        if (seq === messageRequestSeq) state.isFetchingMessages = false;
     }
-}, { triggerAuthOverlay: true });
+}, {
+    triggerAuthOverlay: true,
+    onError: error => showToast(getErrorMessage(error), 'error'),
+});
 
 /**
  * Why: Triggers translation for visible untranslated items in a single batch.
@@ -311,8 +325,8 @@ function triggerBatchTranslation(): void {
     const targetLang = state.currentLang || 'en';
     if (targetLang === 'en') return;
 
-    const all = [...state.messages.inbox, ...state.messages.delegated, ...state.messages.reference];
-    const findMsg = (id: number) => all.find(item => item.id === id);
+    const messages = state.messages;
+    const findMsg = (id: number) => state.currentLang === targetLang && state.messages === messages ? getTaskById(id) : undefined;
 
     // Mark translating + show spinner immediately (also prevents duplicate triggers)
     ids.forEach(id => {
@@ -431,14 +445,14 @@ function openConnectionsSettings(): void {
  * Fetches user profile and updates state.
  */
 const fetchUserProfile = safeAsync(async () => {
-    if (state.isFetchingMessages) return;
-    state.isFetchingMessages = true;
+    if (isFetchingUserProfile) return;
+    isFetchingUserProfile = true;
     try {
         const data = await api.fetchUserProfile();
         state.userProfile = data;
         events.emit(EVENTS.USER_PROFILE_UPDATED, state.userProfile);
     } finally {
-        state.isFetchingMessages = false;
+        isFetchingUserProfile = false;
     }
     // Call fetchMessages AFTER releasing the lock to avoid blocking
     await fetchMessages(true);
@@ -449,7 +463,7 @@ const fetchUserProfile = safeAsync(async () => {
 // --- Event Subscriptions ---
 
 events.on(EVENTS.TASK_COMPLETED, () => {
-    fetchUserProfile();
+    void fetchUserProfile().catch(error => console.error('[Profile] refresh failed', error));
 });
 
 events.on(EVENTS.USER_PROFILE_UPDATED, (profile: UserProfile) => {
@@ -484,6 +498,9 @@ const initLanguageSelector = () => {
             const target = e.target as HTMLSelectElement;
             const lang = target.value;
             updateLang(lang);
+            ++messageRequestSeq;
+            updateMessages({ inbox: [], delegated: [], reference: [] });
+            renderMessages(state.messages);
             events.emit(EVENTS.LANGUAGE_CHANGED, lang);
             renderUILanguage(lang);
             try {
@@ -718,6 +735,8 @@ const schedulePoll = (task: (bypass: boolean) => Promise<void>, interval: number
     const timer = setTimeout(async () => {
         try {
             await task(false);
+        } catch (error) {
+            console.error('[Polling] refresh failed', error);
         } finally {
             const idx = activeTimers.indexOf(timer);
             if (idx !== -1) activeTimers.splice(idx, 1);
@@ -808,26 +827,15 @@ const initApp = () => {
     });
 
     let taskSearchDebounce: ReturnType<typeof setTimeout> | undefined;
-    let taskSearchSeq = 0;
     document.getElementById('taskSearch')?.addEventListener('input', (e) => {
         clearTimeout(taskSearchDebounce);
-        const q = (e.target as HTMLInputElement).value;
-        // Why: trigram tokenizer needs ≥3 runes; below threshold use cached client-side LIKE.
-        const useFts = [...q.trim()].length >= 3;
-        taskSearchDebounce = setTimeout(async () => {
-            if (!useFts) {
-                renderMessages(state.messages);
-                return;
-            }
-            const seq = ++taskSearchSeq;
-            try {
-                const filtered = await api.searchActiveMessages(q, state.currentLang);
-                if (seq !== taskSearchSeq) return;
-                renderMessages(filtered, { skipClientSearch: true });
-            } catch {
-                if (seq !== taskSearchSeq) return;
-                renderMessages(state.messages);
-            }
+        ++messageRequestSeq;
+        state.taskSearchQuery = (e.target as HTMLInputElement).value;
+        state.isTaskSearchResult = [...state.taskSearchQuery.trim()].length >= 3;
+        updateMessages({ inbox: [], delegated: [], reference: [] });
+        renderMessages(state.messages);
+        taskSearchDebounce = setTimeout(() => {
+            void fetchMessages(true).catch(error => console.error('[Search] refresh failed', error));
         }, 300);
     });
     setupTabs('.c-settings__tab', '.c-settings__panel', 'data-settings-tab', 'c-settings__tab--active', (tabId: string) => {
@@ -867,7 +875,7 @@ const initApp = () => {
     guide.init();
     setupConnectionsTab();
 
-    fetchUserProfile();
+    void fetchUserProfile().catch(error => console.error('[Profile] refresh failed', error));
     checkAllStatus(true);
 
     initPolling();

@@ -6,6 +6,13 @@ import { state } from './state';
 import type { Message } from './types';
 import { getCategoryOptionsHtml } from './logic';
 
+beforeEach(() => {
+    state.taskSearchQuery = '';
+    state.isTaskSearchResult = false;
+});
+
+
+
 
 describe('renderer.js - Empty State Messages', () => {
     it('should have a sufficient number of witty messages', () => {
@@ -344,25 +351,26 @@ describe('renderer.js - renderMessages idempotence', () => {
     });
 });
 
-// ─── renderMessages — skipClientSearch ───────────────────────────────────────
 
-describe('renderer.js - renderMessages skipClientSearch', () => {
+
+describe('renderer.js - renderMessages search context', () => {
     beforeEach(() => {
         document.body.innerHTML = TASK_GRID_HTML;
         state.deadlineFilter = 'all';
     });
 
-    it('bypasses client-side search when skipClientSearch=true', () => {
-        (document.getElementById('taskSearch') as HTMLInputElement).value = 'xyz-no-match';
+    it('preserves body-only matches in server search results', () => {
+        state.isTaskSearchResult = true;
+        state.taskSearchQuery = 'xyz-no-match';
         renderer.renderMessages(
             { inbox: [makeMsg({ id: 5, task: 'completely different text' })], delegated: [], reference: [] },
-            { skipClientSearch: true },
         );
         expect(document.getElementById('receivedTasksList')?.querySelector('.c-message-card[data-id="5"]')).not.toBeNull();
     });
 
-    it('applies client-side search filter when skipClientSearch not set', () => {
-        (document.getElementById('taskSearch') as HTMLInputElement).value = 'xyz-no-match';
+    it('applies the current state query to ordinary list results', () => {
+        state.isTaskSearchResult = false;
+        state.taskSearchQuery = 'xyz-no-match';
         renderer.renderMessages(
             { inbox: [makeMsg({ id: 6, task: 'completely different text' })], delegated: [], reference: [] },
         );

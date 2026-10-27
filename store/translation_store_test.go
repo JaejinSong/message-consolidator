@@ -39,49 +39,53 @@ func TestGetTaskTranslationsBatch_EmptyLang(t *testing.T) {
 	}
 }
 
-func TestSplitTranslationsByCache_NoCache(t *testing.T) {
-	t.Parallel()
-	translationMu.Lock()
-	delete(translationCache, "xx")
-	translationMu.Unlock()
-
-	ids := []MessageID{1, 2, 3}
-	results, missing := splitTranslationsByCache("xx", ids)
-	if len(results) != 0 {
-		t.Errorf("expected 0 cached results, got %d", len(results))
+func TestGetTaskTranslationsBatch_MissingTranslations(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup database: %v", err)
 	}
-	if len(missing) != 3 {
-		t.Errorf("expected 3 missing, got %d", len(missing))
+	t.Cleanup(cleanup)
+	results, err := GetTaskTranslationsBatch(context.Background(), []MessageID{1, 2, 3}, "xx")
+	if err != nil {
+		t.Fatalf("get missing translations: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no translations, got %v", results)
 	}
 }
 
-func TestSplitTranslationsByCache_PartialHit(t *testing.T) {
-	t.Parallel()
-	lang := "test-lang-partial"
-	translationMu.Lock()
-	translationCache[lang] = map[MessageID]string{
-		MessageID(10): "hello",
-		MessageID(11): "",
+func TestGetTaskTranslationsBatch_ReflectsPersistedChanges(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("setup database: %v", err)
 	}
-	translationMu.Unlock()
-	t.Cleanup(func() {
-		translationMu.Lock()
-		delete(translationCache, lang)
-		translationMu.Unlock()
-	})
-
-	ids := []MessageID{10, 11, 12}
-	results, missing := splitTranslationsByCache(lang, ids)
-	// ID 10: cached with text → in results
-	if results[10] != "hello" {
-		t.Errorf("expected 'hello' for ID 10, got %q", results[10])
+	t.Cleanup(cleanup)
+	ctx := context.Background()
+	result, err := GetDB().ExecContext(ctx, "INSERT INTO messages (user_email, task, source, source_ts) VALUES (?, ?, ?, ?)", testutil.RandomEmail("translation"), "Title", "slack", testutil.RandomTS("translation"))
+	if err != nil {
+		t.Fatalf("seed message: %v", err)
 	}
-	// ID 11: cached with empty → not in results but not in missing
-	// ID 12: not cached → in missing
-	for _, m := range missing {
-		if m != 12 {
-			t.Errorf("unexpected missing id %d", m)
+	rawID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("message id: %v", err)
+	}
+	id := MessageID(rawID)
+	for _, text := range []string{"First translation", "Updated translation"} {
+		if err := SaveTaskTranslationsBulk(ctx, "ko", map[MessageID]string{id: text}); err != nil {
+			t.Fatalf("save translation: %v", err)
 		}
+		results, err := GetTaskTranslationsBatch(ctx, []MessageID{id, id + 1000000}, "ko")
+		if err != nil {
+			t.Fatalf("get translations: %v", err)
+		}
+		if len(results) != 1 || results[id] != text {
+			t.Fatalf("translations = %v, want only %q", results, text)
+		}
+	}
+	InvalidateTaskTranslation(ctx, nil, id)
+	results, err := GetTaskTranslationsBatch(ctx, []MessageID{id}, "ko")
+	if err != nil || len(results) != 0 {
+		t.Fatalf("translations after invalidation = %v, %v", results, err)
 	}
 }
 

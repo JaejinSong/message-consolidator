@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"message-consolidator/db"
 	"message-consolidator/logger"
@@ -12,18 +13,62 @@ import (
 )
 
 func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, id MessageID, updateFn func(*db.UpdateMessageDetailsParams)) error {
-	return withTx(ctx, q, func(qw Querier) error {
-		params := db.UpdateMessageDetailsParams{
-			ID:        int64(id),
-			UserEmail: nullString(email),
+	params := db.UpdateMessageDetailsParams{ID: int64(id), UserEmail: nullString(email)}
+	updateFn(&params)
+	return updateMessageWithTitleInvalidation(ctx, q, email, id, params.Task, func(qw Querier) error {
+		return db.New(qw).UpdateMessageDetails(ctx, params)
+	})
+}
+
+func updateMessageWithTitleInvalidation(ctx context.Context, q Querier, email string, id MessageID, title sql.NullString, update func(Querier) error) error {
+	return withMessageTitleTx(ctx, q, func(qw Querier) error {
+		changed := false
+		if title.Valid {
+			row, err := db.New(qw).GetMessageByID(ctx, int64(id))
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("read title before update: %w", err)
+			}
+			if row.UserEmail != email {
+				return nil
+			}
+			changed = row.Task != title.String
 		}
-		updateFn(&params)
-		if err := db.New(qw).UpdateMessageDetails(ctx, params); err != nil {
-			return err
+		if err := update(qw); err != nil {
+			return fmt.Errorf("update message: %w", err)
+		}
+		if changed {
+			if err := invalidateTaskTranslation(ctx, qw, id); err != nil {
+				return err
+			}
 		}
 		InvalidateCache(email)
 		return nil
 	})
+}
+
+func withMessageTitleTx(ctx context.Context, q Querier, update func(Querier) error) error {
+	if q == nil {
+		return RunInTx(ctx, func(tx *sql.Tx) error { return update(tx) })
+	}
+	conn, ok := q.(*sql.DB)
+	if !ok {
+		return update(q)
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin message title transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if err := update(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit message title transaction: %w", err)
+	}
+	return nil
 }
 
 // CompletionCandidate is a confirm-first signal that an incoming cross-channel
@@ -184,7 +229,7 @@ type UpdateMessageCorrectionFields struct {
 // UpdateMessageDetails, this path must also persist deadline/metadata, which sqlc
 // cannot share with the done/completed_at update shape.
 func UpdateMessageCorrection(ctx context.Context, q Querier, email string, id MessageID, f UpdateMessageCorrectionFields) error {
-	return withTx(ctx, q, func(qw Querier) error {
+	return updateMessageWithTitleInvalidation(ctx, q, email, id, f.Task, func(qw Querier) error {
 		if err := db.New(qw).UpdateMessageCorrection(ctx, db.UpdateMessageCorrectionParams{
 			ID:               int64(id),
 			UserEmail:        nullString(email),
@@ -198,7 +243,6 @@ func UpdateMessageCorrection(ctx context.Context, q Querier, email string, id Me
 		}); err != nil {
 			return err
 		}
-		InvalidateCache(email)
 		return nil
 	})
 }

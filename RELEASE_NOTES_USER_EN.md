@@ -2,6 +2,15 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes - v2.4.7 (2026-10-27 UTC)
+
+- 👤 **Preserved task ownership**: Requester and assignee details stay consistent, and new tasks from completed threads retain the prior assignee and date context.
+- 🛡️ **Reliable task edits**: Editing a title invalidates old translations so they can be regenerated for the new title, and blank titles can no longer make tasks disappear.
+- 🔍 **Steadier search**: Search terms, language selection, and refresh requests are handled consistently so stale responses do not replace current results.
+- ↩️ **Safe subtask saves**: If a save fails, the interface restores the previous state.
+
+---
+
 # Release Notes - v2.4.6 (2026-04-19 15:33 UTC)
 
 

@@ -256,14 +256,6 @@ export const api = {
         return apiFetch('/scan', { params: { lang }, errorMessage: 'Scan failed' });
     },
 
-    async translateTasks(lang: string): Promise<ApiStatusResponse> {
-        return apiFetch('/translate', {
-            method: 'POST',
-            params: { lang },
-            errorMessage: 'Translation failed'
-        });
-    },
-
     async translateTasksBatch(taskIds: number[], lang: string): Promise<{ results: TranslateBatchResult[] }> {
         return apiFetch('/tasks/translate-batch', {
             method: 'POST',

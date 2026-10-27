@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"message-consolidator/ai"
 	"message-consolidator/logger"
@@ -310,9 +311,7 @@ func (s *CompletionService) handleCompletionResult(ctx context.Context, res ai.T
 // void return left the message in filteredMsgs, causing a second batch Analyze
 // in processBatch within the same cycle and re-extraction every cycle thereafter).
 func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg store.ConsolidatedMessage) bool {
-	// Why: thread had a real (done) parent task — propagate its assignee so the
-	// new row inherits routing context. AI per-item Assignee still wins via
-	// createTaskFromItem override; this only fills the envelope default.
+	// Why: a completed parent still supplies routing context when AI leaves the assignee empty.
 	if msg.Assignee == "" && msg.ThreadID != "" {
 		if a, err := s.store.GetLatestThreadAssignee(ctx, s.db, msg.UserEmail, msg.ThreadID); err == nil && a != "" {
 			msg.Assignee = a
@@ -331,6 +330,19 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 		return false
 	}
 
+	compStats.fallbackExtraction.Add(1)
+	var user store.User
+	var aliases []string
+	err = store.WithDBRetry("CompletionFallback.LoadUser", func() error {
+		var loadErr error
+		user, aliases, loadErr = loadRescueUser(ctx, msg.UserEmail)
+		return loadErr
+	})
+	if err != nil {
+		logger.Warnf("[COMPLETION] fallback: load user context after retries: %v", err)
+		return true
+	}
+
 	// Why: items are independent SaveMessage calls — wrapping them in a single
 	// outer tx only widened the libsql writer-lock window and silently swallowed
 	// per-item INSERT failures via tx.Commit() on a nil-return fn. WithDBRetry
@@ -338,14 +350,56 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 	// backoff). AI cost is sunk regardless of save outcome — the bool return is
 	// what stops the token bleed, not save success.
 	for _, item := range items {
+		guardedItem, builtMsg, guard, ok := GuardAndBuild(ctx, completionFallbackParams(msg, user, aliases, item))
+		if !ok {
+			logger.Infof("[COMPLETION] fallback: extraction guard dropped item (%s)", guard.DropReason)
+			continue
+		}
+		builtMsg.ID = msg.ID
+		builtMsg.CreatedAt = msg.CreatedAt
+		builtMsg.HasOriginal = msg.HasOriginal
+		builtMsg.IsContextQuery = msg.IsContextQuery
+		builtMsg.AssigneeReason = msg.AssigneeReason
 		err := store.WithDBRetry("CompletionFallback.HandleTaskState", func() error {
-			_, e := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, item, msg)
+			_, e := s.store.HandleTaskState(ctx, s.db, msg.UserEmail, guardedItem, builtMsg)
 			return e
 		})
 		if err != nil {
 			logger.Warnf("[COMPLETION] fallback: HandleTaskState dropped item after retries: %v", err)
 		}
 	}
-	compStats.fallbackExtraction.Add(1)
 	return true
+}
+
+func completionFallbackParams(msg store.ConsolidatedMessage, user store.User, aliases []string, item store.TodoItem) TaskBuildParams {
+	metadata := make(map[string]json.RawMessage)
+	for _, raw := range []json.RawMessage{msg.Metadata, item.Metadata} {
+		if len(raw) == 0 {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			logger.Warnf("[COMPLETION] fallback: decode metadata: %v", err)
+			continue
+		}
+		for key, value := range fields {
+			metadata[key] = value
+		}
+	}
+	if len(metadata) > 0 {
+		merged, err := json.Marshal(metadata)
+		if err != nil {
+			logger.Warnf("[COMPLETION] fallback: encode metadata: %v", err)
+		} else {
+			item.Metadata = merged
+		}
+	}
+	return TaskBuildParams{
+		UserEmail: msg.UserEmail, User: user, Aliases: aliases, Item: item,
+		FallbackAssignee: msg.Assignee,
+		SenderRaw:        msg.Requester, Source: msg.Source, Room: msg.Room,
+		Link: msg.Link, ThreadID: msg.ThreadID, SourceTS: msg.SourceTS,
+		Timestamp: msg.CreatedAt, RepliedToID: msg.RepliedToID,
+		OriginalText: msg.OriginalText, SourceChannels: msg.SourceChannels,
+	}
 }

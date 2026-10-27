@@ -2,6 +2,17 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# 업데이트 소식 (기술) - v2.4.7 (2026-10-27 UTC)
+
+- [REFACTOR] 추출 guard와 task builder를 `GuardAndBuild` 경로로 통합하고, guarded item과 메시지를 함께 반환해 caller의 라우팅 정책을 보존. incoming ID를 유지하고 completion fallback 담당자 입력은 별도로 전달.
+- [FIX] 번역 캐시의 단일 기준을 `task_translations` DB로 두고, 제목 변경과 기존 번역 삭제를 같은 transaction에서 처리.
+- [FIX] 검색 상태와 request generation을 통합해 언어·검색어 변경 및 최신 응답 적용을 안정화.
+- [FIX] 하위 작업의 로컬 optimistic 변경을 pending 상태로 추적하고 저장 실패 시 롤백.
+- [CLEANUP] 사용되지 않는 메서드 제거.
+- [TEST] 회귀 및 race fixture 검증 완료. `go test -race ./...` 전체 통과(services 78.090초); npm 37개 파일·569개 테스트 통과; TypeScript 검사와 build 통과.
+
+---
+
 # 업데이트 소식 (기술) - v2.4.6 (2026-04-19 15:33 UTC)
 
 

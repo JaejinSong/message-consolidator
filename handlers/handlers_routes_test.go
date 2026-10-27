@@ -11,8 +11,8 @@ import (
 
 // TestRegisterRoutes_NoRouteLeaks verifies RegisterRoutes executes without panic
 // and attaches the /health endpoint (the only non-auth-gated sanity probe).
+// Why: route registration tests run serially because registration rewrites shared OAuth configuration.
 func TestRegisterRoutes_NoRouteLeaks(t *testing.T) {
-	t.Parallel()
 	api := &API{Config: &config.Config{}}
 	r := mux.NewRouter()
 	// Should not panic even with empty config.
@@ -29,7 +29,6 @@ func TestRegisterRoutes_NoRouteLeaks(t *testing.T) {
 // TestRegisterRoutes_EmbeddingRoutesRemoved guards the FTS5-only migration: the
 // semantic search and embedding backfill endpoints must no longer be registered.
 func TestRegisterRoutes_EmbeddingRoutesRemoved(t *testing.T) {
-	t.Parallel()
 	api := &API{Config: &config.Config{}}
 	r := mux.NewRouter()
 	api.RegisterRoutes(r)
@@ -54,7 +53,6 @@ func TestRegisterRoutes_EmbeddingRoutesRemoved(t *testing.T) {
 // TestRegisterSlackBotRoutes_SkippedWhenNoSecret verifies that Slack bot endpoints
 // are NOT registered when the signing secret is empty.
 func TestRegisterSlackBotRoutes_SkippedWhenNoSecret(t *testing.T) {
-	t.Parallel()
 	api := &API{Config: &config.Config{SlackSigningSecret: ""}}
 	r := mux.NewRouter()
 	api.RegisterRoutes(r)
@@ -105,7 +103,6 @@ func TestProtected_RedirectsUnauthenticated(t *testing.T) {
 // TestRegisterRoutes_HealthPath verifies the health route is wired through the full
 // registered router (exercises registerChannelRoutes and sibling register* calls too).
 func TestRegisterRoutes_AllRegisterSubFunctions(t *testing.T) {
-	t.Parallel()
 	api := &API{Config: &config.Config{}}
 	r := mux.NewRouter()
 	api.RegisterRoutes(r)

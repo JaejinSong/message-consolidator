@@ -249,6 +249,8 @@ export interface AppState {
     staleThresholdWorkingDays: number;
     archiveStatus: string;
     messages: CategorizedMessages;
+    taskSearchQuery: string;
+    isTaskSearchResult: boolean;
     userStats: UserStats | null;
     selectedTaskIds: Set<number>;
     reports: Record<string, IReportData>;

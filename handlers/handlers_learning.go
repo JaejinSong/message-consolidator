@@ -108,6 +108,10 @@ func (a *API) HandlePatchMessageDetails(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusBadRequest, "Invalid Task ID")
 		return
 	}
+	if req.Task != nil && strings.TrimSpace(*req.Task) == "" {
+		respondError(w, http.StatusBadRequest, "task is required")
+		return
+	}
 	if req.Category != nil && !types.IsValidTaskCategory(*req.Category) {
 		respondError(w, http.StatusBadRequest, "Invalid category")
 		return

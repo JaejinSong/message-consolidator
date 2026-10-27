@@ -284,13 +284,9 @@ export function updateMessageCard(m: Message): void {
 
 import { filterByDeadline, TaskTab } from './taskFilter';
 
-/**
- * Renders message cards based on categorized data.
- * skipClientSearch: bypass client-side LIKE filter when categorized is already FTS-filtered server-side.
- */
-export function renderMessages(categorized: CategorizedMessages, opts?: { skipClientSearch?: boolean }): void {
-    const inputVal = (document.getElementById('taskSearch') as HTMLInputElement)?.value || '';
-    const searchQuery = opts?.skipClientSearch ? '' : inputVal;
+export function renderMessages(categorized: CategorizedMessages): void {
+    const inputVal = state.taskSearchQuery;
+    const searchQuery = state.isTaskSearchResult ? '' : inputVal;
     const dlFilter = state.deadlineFilter || 'all';
 
     const inbox     = categorized.inbox     || [];

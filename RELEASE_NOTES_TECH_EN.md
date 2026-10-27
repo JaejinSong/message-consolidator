@@ -2,6 +2,17 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes (Tech) - v2.4.7 (2026-10-27 UTC)
+
+- [REFACTOR] Unify extraction guarding and task building through `GuardAndBuild`; return the guarded item with the message so callers retain routing policy. Preserve incoming IDs and pass completion fallback assignee input separately.
+- [FIX] Make the `task_translations` database the sole translation-cache source and delete prior translations in the same transaction as title changes.
+- [FIX] Unify search state and request generations to handle query and language changes while applying only current responses.
+- [FIX] Track local optimistic subtask edits as pending and roll them back when persistence fails.
+- [CLEANUP] Remove an unused method.
+- [TEST] Regression and race fixtures verified. `go test -race ./...` passed (services: 78.090s); npm passed with 37 files and 569 tests; TypeScript checks and build passed.
+
+---
+
 # Release Notes (Tech) - v2.4.6 (2026-04-19 15:33 UTC)
 
 

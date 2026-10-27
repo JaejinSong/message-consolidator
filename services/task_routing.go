@@ -260,15 +260,9 @@ var quoteAnchoredThreadSources = map[string]bool{
 	store.SourceLine:     true,
 }
 
-// Why: Folds the SaveMessage path so handleNew's body stays linear. AI-supplied requester/assignee/reason override the envelope when present.
+// Why: preserves builder-resolved actors while carrying the extraction's assignment reason into storage.
 func createTaskFromItem(ctx context.Context, q store.Querier, item store.TodoItem, msg store.ConsolidatedMessage) (store.MessageID, error) {
 	msg.Task = item.Task
-	if item.Requester != "" {
-		msg.Requester = item.Requester
-	}
-	if item.Assignee != "" {
-		msg.Assignee = item.Assignee
-	}
 	if item.AssigneeReason != "" {
 		msg.AssigneeReason = item.AssigneeReason
 	}

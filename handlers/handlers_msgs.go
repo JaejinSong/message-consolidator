@@ -401,6 +401,10 @@ func (a *API) HandleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	if !bindJSON(w, r, &req) {
 		return
 	}
+	if strings.TrimSpace(req.Task) == "" {
+		respondError(w, http.StatusBadRequest, "task is required")
+		return
+	}
 	if err := store.UpdateTaskText(r.Context(), store.GetDB(), email, req.ID, req.Task); err != nil {
 		handleAPIError(w, r, err, "[UPDATE_TASK] Error for "+email, "Failed to update task")
 		return

@@ -22,6 +22,8 @@ export const state: AppState = {
     staleThresholdWorkingDays: 3,
     archiveStatus: 'all',
     messages: { inbox: [], delegated: [], reference: [] },
+    taskSearchQuery: '',
+    isTaskSearchResult: false,
     userStats: null,
     selectedTaskIds: new Set<number>(),
     reports: {},

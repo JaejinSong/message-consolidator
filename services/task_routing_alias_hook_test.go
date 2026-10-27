@@ -58,6 +58,8 @@ func TestCreateTaskFromItem_EnsuresContactAlias(t *testing.T) {
 		UserEmail: email,
 		Source:    "slack",
 		Room:      "test-room-alias",
+		Requester: item.Requester,
+		Assignee:  item.Assignee,
 	}
 
 	if _, err := HandleTaskState(ctx, nil, email, item, msg); err != nil {

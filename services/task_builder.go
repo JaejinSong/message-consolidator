@@ -16,6 +16,8 @@ type TaskBuildParams struct {
 	Aliases   []string
 	Item      store.TodoItem
 
+	FallbackAssignee string
+
 	// Raw metadata from the source channel — used as authoritative fallback if AI leaves fields empty.
 	SenderRaw   string // Resolved display name (e.g., "WhaTap Bot", "Kenny")
 	SenderEmail string // Raw email/ID (e.g., "kenny@whatap.io")
@@ -232,6 +234,9 @@ func resolveSharedFallback(ctx context.Context, p TaskBuildParams) string {
 }
 
 func resolveAssignee(ctx context.Context, p TaskBuildParams) string {
+	if strings.TrimSpace(p.Item.Assignee) == "" {
+		p.Item.Assignee = p.FallbackAssignee
+	}
 	raw := normalizeAIAssignee(p)
 	if raw == "" {
 		raw = AssigneeShared

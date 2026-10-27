@@ -298,16 +298,6 @@ describe('api', () => {
         });
     });
 
-    describe('translateTasks', () => {
-        it('uses POST with lang param', async () => {
-            (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { status: 'ok' }));
-            await api.translateTasks('ko');
-            const [url, opts] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
-            expect(url).toContain('lang=ko');
-            expect(opts.method).toBe('POST');
-        });
-    });
-
     describe('translateTasksBatch', () => {
         it('posts task_ids and lang', async () => {
             (fetch as ReturnType<typeof vi.fn>).mockImplementation(() => mockResponse(200, { results: [{ id: 1, translated_text: 'translated' }] }));

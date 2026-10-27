@@ -78,6 +78,12 @@ output.
 | `GmailClassification` | `CategorySent` / `CategoryMine` / `CategoryOthers` hint |
 | `OriginalText` | Stored verbatim for evidence snippets in reports |
 
+Envelope policy inputs such as `IsCcOnly`, `GmailClassification`,
+`ExplicitMentions`, and the completion `FallbackAssignee` stay in
+`TaskBuildParams`. `GuardAndBuild` applies `ApplyExtractionGuard` before
+`BuildTask` and returns the guarded item with the built message; each caller
+keeps ownership of persistence and routing.
+
 **Requester resolution chain (Phase J Path B):**
 
 1. `SenderRaw` (resolved display name from platform adapter)
@@ -260,6 +266,10 @@ path. When the thread's parent task was closed, the fallback would otherwise
 create an orphan task with no assignee. The store function retrieves the
 most recent `assignee` from `messages` filtered by `thread_id`, excluding
 `"shared"` values.
+
+The completion fallback uses `GuardAndBuild` before routing each surviving
+item through `HandleTaskState`, sharing the guard-then-build policy with the
+normal ingestion paths.
 
 The self-reply shortcut (`RequesterCanonical == UserEmail`) uses structural
 metadata, not AI, to prevent the common "Thanks! / Done." message from
