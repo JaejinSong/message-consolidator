@@ -273,7 +273,7 @@ describe('task search through application events', () => {
         vi.mocked(api.fetchMessages).mockResolvedValue(messages(task(20, 'Original English')));
         changeLanguage('ko');
         await flush();
-        expect(api.requestTranslation).toHaveBeenCalledWith(20, 'ko');
+        expect(api.requestTranslation).toHaveBeenCalledWith(20, 'ko', 'Original English');
         if (transition === 'language') {
             changeLanguage('en');
         } else {

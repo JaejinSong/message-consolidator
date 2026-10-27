@@ -326,7 +326,11 @@ function triggerBatchTranslation(): void {
     if (targetLang === 'en') return;
 
     const messages = state.messages;
-    const findMsg = (id: number) => state.currentLang === targetLang && state.messages === messages ? getTaskById(id) : undefined;
+    const findMsg = (id: number, sourceTitle?: string) => {
+        if (state.currentLang !== targetLang || state.messages !== messages) return undefined;
+        const message = getTaskById(id);
+        return sourceTitle === undefined || message?.task === sourceTitle ? message : undefined;
+    };
 
     // Mark translating + show spinner immediately (also prevents duplicate triggers)
     ids.forEach(id => {
@@ -336,9 +340,11 @@ function triggerBatchTranslation(): void {
 
     // Merge each translation into state and repaint that card as it arrives (progressive).
     ids.forEach(id => {
-        api.requestTranslation(id, targetLang)
+        const sourceTitle = findMsg(id)?.task;
+        if (sourceTitle === undefined) return;
+        api.requestTranslation(id, targetLang, sourceTitle)
             .then(raw => {
-                const m = findMsg(id);
+                const m = findMsg(id, sourceTitle);
                 if (!m) return;
                 if (raw) {
                     // Mirror backend ApplyTranslations: overwrite task (+ subtasks) with the
@@ -355,7 +361,7 @@ function triggerBatchTranslation(): void {
                 updateMessageCard(m);
             })
             .catch(err => {
-                const m = findMsg(id);
+                const m = findMsg(id, sourceTitle);
                 if (!m) return;
                 m.is_translating = false;
                 m.translation_error = getErrorMessage(err);

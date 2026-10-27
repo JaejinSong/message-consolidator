@@ -55,57 +55,65 @@ const ensureIntArray = (ids: (string | number)[]): number[] => {
 };
 
 class TranslationBatcher {
-    private queue: Map<string, Set<number>> = new Map();
-    private promises: Map<string, { promise: Promise<string>; resolve: (value: string) => void; reject: (reason?: unknown) => void }> = new Map();
+    private queue: Map<string, Set<string>> = new Map();
+    private promises: Map<string, { id: number; sourceTitle?: string; promise: Promise<string>; resolve: (value: string) => void; reject: (reason?: unknown) => void }> = new Map();
     private timer: ReturnType<typeof setTimeout> | null = null;
 
-    request(id: string | number, lang: string): Promise<string> {
+    request(id: string | number, lang: string, sourceTitle?: string): Promise<string> {
         const validatedId = ensureInt(id);
-        const key = `${validatedId}_${lang}`;
+        const key = JSON.stringify([validatedId, lang, sourceTitle ?? null]);
         if (this.promises.has(key)) return this.promises.get(key)!.promise;
 
         if (!this.queue.has(lang)) this.queue.set(lang, new Set());
-        this.queue.get(lang)!.add(validatedId);
+        this.queue.get(lang)!.add(key);
 
         let resolve!: (value: string) => void;
         let reject!: (reason?: unknown) => void;
         const promise = new Promise<string>((res, rej) => { resolve = res; reject = rej; });
-        this.promises.set(key, { promise, resolve, reject });
+        this.promises.set(key, { id: validatedId, sourceTitle, promise, resolve, reject });
 
         if (!this.timer) this.timer = setTimeout(() => this.flush(), 50);
         return promise;
     }
 
-    private async flush() {
+    private flush(): void {
         this.timer = null;
         const currentQueue = new Map(this.queue);
         this.queue.clear();
 
-        for (const [lang, ids] of currentQueue) {
-            this.processBatch(Array.from(ids), lang);
+        for (const [lang, keys] of currentQueue) {
+            const batches: Map<number, string>[] = [];
+            for (const key of keys) {
+                const entry = this.promises.get(key)!;
+                let batch = batches.find(candidate => !candidate.has(entry.id));
+                if (!batch) {
+                    batch = new Map();
+                    batches.push(batch);
+                }
+                // Why: A request payload can hold only one source title for each task ID.
+                batch.set(entry.id, key);
+            }
+            batches.forEach(batch => { void this.processBatch([...batch.values()], lang); });
         }
     }
 
-    private async processBatch(ids: number[], lang: string) {
+    private async processBatch(keys: string[], lang: string): Promise<void> {
+        const entries = keys.map(key => ({ key, entry: this.promises.get(key)! }));
+        const ids = entries.map(({ entry }) => entry.id);
+        const sourceTitles = Object.fromEntries(entries
+            .filter(({ entry }) => entry.sourceTitle !== undefined)
+            .map(({ entry }) => [entry.id, entry.sourceTitle!]));
         try {
-            const { results } = await api.translateTasksBatch(ids, lang);
-            ids.forEach(id => {
-                const res = results.find(r => r.id === id);
-                const key = `${id}_${lang}`;
-                const entry = this.promises.get(key);
-                if (entry) {
-                    entry.resolve(res?.translated_text || "");
-                    this.promises.delete(key);
-                }
+            const { results } = await api.translateTasksBatch(ids, lang, sourceTitles);
+            entries.forEach(({ entry }) => {
+                const result = results.find(item => item.id === entry.id);
+                entry.resolve(result?.translated_text || "");
             });
         } catch (err) {
-            ids.forEach(id => {
-                const key = `${id}_${lang}`;
-                const entry = this.promises.get(key);
-                if (entry) {
-                    entry.reject(err);
-                    this.promises.delete(key);
-                }
+            entries.forEach(({ entry }) => entry.reject(err));
+        } finally {
+            entries.forEach(({ key, entry }) => {
+                if (this.promises.get(key) === entry) this.promises.delete(key);
             });
         }
     }
@@ -114,8 +122,8 @@ class TranslationBatcher {
 const batcher = new TranslationBatcher();
 
 export const api = {
-    async requestTranslation(id: string | number, lang: string): Promise<string> {
-        return batcher.request(id, lang);
+    async requestTranslation(id: string | number, lang: string, sourceTitle?: string): Promise<string> {
+        return batcher.request(id, lang, sourceTitle);
     },
 
     async fetchMessages(lang: string): Promise<CategorizedMessages & { messages?: CategorizedMessages, user?: UserProfile }> {
@@ -256,10 +264,10 @@ export const api = {
         return apiFetch('/scan', { params: { lang }, errorMessage: 'Scan failed' });
     },
 
-    async translateTasksBatch(taskIds: number[], lang: string): Promise<{ results: TranslateBatchResult[] }> {
+    async translateTasksBatch(taskIds: number[], lang: string, sourceTitles?: Record<number, string>): Promise<{ results: TranslateBatchResult[] }> {
         return apiFetch('/tasks/translate-batch', {
             method: 'POST',
-            body: JSON.stringify({ task_ids: taskIds, lang }),
+            body: JSON.stringify({ task_ids: taskIds, lang, ...(sourceTitles && Object.keys(sourceTitles).length ? { source_titles: sourceTitles } : {}) }),
             errorMessage: 'Batch translation failed'
         });
     },
