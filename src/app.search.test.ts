@@ -287,6 +287,39 @@ describe('task search through application events', () => {
         expect(getTaskById(20)?.task).toBe(transition === 'language' ? 'Original English' : 'Current result');
     });
 
+    it.each(['old-first', 'new-first', 'old-error'])('keeps the current title translation after a server refresh: %s', async order => {
+        const old = deferred<string>();
+        const latest = deferred<string>();
+        const panel = document.createElement('section');
+        panel.className = 'c-tabs__panel active';
+        document.getElementById('receivedTasksList')!.before(panel);
+        panel.append(document.getElementById('receivedTasksList')!);
+        vi.mocked(api.requestTranslation).mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
+        vi.mocked(api.fetchMessages).mockResolvedValueOnce(messages(task(20, 'Old title')));
+        changeLanguage('ko');
+        await flush();
+        vi.mocked(api.fetchMessages).mockResolvedValue(messages(task(20, 'New title')));
+        await vi.advanceTimersByTimeAsync(POLLING_INTERVALS.MESSAGES - 500);
+        expect(api.requestTranslation).toHaveBeenLastCalledWith(20, 'ko', 'New title');
+        if (order === 'new-first') {
+            latest.resolve('New translation');
+            await flush();
+        }
+        if (order === 'old-error') old.reject(new Error('Old request failed'));
+        else old.resolve('Old translation');
+        await flush();
+        expect(getTaskById(20)?.task).toBe(order === 'new-first' ? 'New translation' : 'New title');
+        expect(getTaskById(20)?.translation_error).toBeUndefined();
+        if (order !== 'new-first') {
+            expect(getTaskById(20)?.is_translating).toBe(true);
+            latest.resolve('New translation');
+            await flush();
+        }
+        expect(getTaskById(20)?.task).toBe('New translation');
+        expect(getTaskById(20)?.is_translating).toBe(false);
+        expect(document.getElementById('receivedTasksList')?.textContent).toContain('New translation');
+    });
+
     it('keeps a pending search locked when an independent profile refresh fails', async () => {
         const profile = deferred<import('./types').UserProfile>();
         const latest = deferred<CategorizedMessages>();
