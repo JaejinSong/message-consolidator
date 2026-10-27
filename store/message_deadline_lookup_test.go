@@ -50,6 +50,9 @@ func TestGetMessageByIDPreservesDeadlineColdAndWarmCache(t *testing.T) {
 			if err := RefreshCache(ctx, email); err != nil {
 				t.Fatalf("refresh cache: %v", err)
 			}
+			if _, found := findMessageInCache(email, MessageID(id)); !found {
+				t.Fatal("message missing from warm cache")
+			}
 			warm, err := GetMessageByID(ctx, GetDB(), email, MessageID(id))
 			if err != nil {
 				t.Fatalf("warm lookup: %v", err)

@@ -134,7 +134,7 @@ func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]Resolved
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
-			sql.NullTime{}, 0,
+			r.DeadlineDate, r.DeadlineInferred,
 		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true

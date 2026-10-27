@@ -400,7 +400,7 @@ func (q *Queries) GetLatestThreadAssignee(ctx context.Context, arg GetLatestThre
 }
 
 const getMessageByID = `-- name: GetMessageByID :one
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type, deadline_date, COALESCE(deadline_inferred, 0) as deadline_inferred
 FROM v_messages WHERE id = ?
 `
 
@@ -436,6 +436,8 @@ type GetMessageByIDRow struct {
 	AssigneeCanonical   string       `json:"assignee_canonical"`
 	RequesterType       string       `json:"requester_type"`
 	AssigneeType        string       `json:"assignee_type"`
+	DeadlineDate        sql.NullTime `json:"deadline_date"`
+	DeadlineInferred    int64        `json:"deadline_inferred"`
 }
 
 func (q *Queries) GetMessageByID(ctx context.Context, id int64) (GetMessageByIDRow, error) {
@@ -473,6 +475,8 @@ func (q *Queries) GetMessageByID(ctx context.Context, id int64) (GetMessageByIDR
 		&i.AssigneeCanonical,
 		&i.RequesterType,
 		&i.AssigneeType,
+		&i.DeadlineDate,
+		&i.DeadlineInferred,
 	)
 	return i, err
 }
@@ -1062,7 +1066,7 @@ func (q *Queries) ListPendingCompletionCandidates(ctx context.Context, arg ListP
 }
 
 const refreshCacheActive = `-- name: RefreshCacheActive :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks
+SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, deadline_date, COALESCE(deadline_inferred, 0) as deadline_inferred
 FROM messages
 WHERE user_email = ?1 AND lifecycle = 'active'
 AND IFNULL(task, '') != ''
@@ -1098,6 +1102,8 @@ type RefreshCacheActiveRow struct {
 	SourceChannels      string        `json:"source_channels"`
 	ConsolidatedContext string        `json:"consolidated_context"`
 	Subtasks            string        `json:"subtasks"`
+	DeadlineDate        sql.NullTime  `json:"deadline_date"`
+	DeadlineInferred    int64         `json:"deadline_inferred"`
 }
 
 func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail sql.NullString) ([]RefreshCacheActiveRow, error) {
@@ -1137,6 +1143,8 @@ func (q *Queries) RefreshCacheActive(ctx context.Context, userEmail sql.NullStri
 			&i.SourceChannels,
 			&i.ConsolidatedContext,
 			&i.Subtasks,
+			&i.DeadlineDate,
+			&i.DeadlineInferred,
 		); err != nil {
 			return nil, err
 		}
