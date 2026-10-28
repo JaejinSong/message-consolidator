@@ -2,6 +2,13 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# 업데이트 소식 (기술) - v2.4.10 (2026-10-28 UTC)
+
+- [FIX] `GetMessageByID`와 `RefreshCacheActive`에서 마감일을 날짜 부분의 TEXT로 조회해 libsql 원격 드라이버의 `DATE` → `sql.NullTime` 변환 오류를 방지. NULL, 시간대 이동 없는 날짜 보존.
+- [TEST] Hrana HTTP 드라이버 회귀 테스트와 SQLite 캐시 cold/warm 검증 통과.
+
+---
+
 # 업데이트 소식 (기술) - v2.4.9 (2026-10-28 UTC)
 
 - [FIX] `UpdateTaskFullAppend`에서 이메일·room 소유권을 확인하고, 제목 변경과 기존 번역 삭제를 같은 transaction으로 처리. 같은 제목의 append는 번역을 보존.

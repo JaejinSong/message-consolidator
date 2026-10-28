@@ -457,11 +457,25 @@ erDiagram
 따라서 명시·추론 마감일 구분과 날짜가 설정되지 않은 상태도 상세 조회에서
 보존됩니다.
 
+`GetMessageByID`와 `RefreshCacheActive`는 `deadline_date`를 직접 날짜형으로
+스캔하지 않고 `CAST(COALESCE(substr(deadline_date,1,10),'') AS TEXT) AS deadline_day`로
+날짜 부분만 문자열로 조회합니다. libsql 원격 드라이버가 `DATE` 값을
+`sql.NullTime`으로 변환하지 못하는 문제를 피하고, NULL은 빈 문자열로
+전달되어 생성된 문자열 필드와 기존 `parseNullDate` 매핑이 처리합니다.
+시간대 변환 없이 저장된 달력 날짜를 보존합니다.
+
 **English:** `v_messages` is rebuilt on every `EnsureSchemaAndSeeds` call (via `rebuildViews`) to keep it current with any schema changes. Store-layer cache loads (`RefreshCacheActive`/`RefreshCacheArchive`) query `messages` directly — not `v_messages` — to skip the view JOIN overhead; contact resolution is then performed in-process in Go via `BuildContactResolver`. The view is used for single-row lookups (`GetMessageByID`) and report queries where contact resolution accuracy matters more than throughput.
 
 `GetMessageByID` detail lookups include `deadline_date` and `deadline_inferred`
 regardless of active-message cache state. Its SQL and row mapping preserve the
 explicit/inferred distinction and an unset date.
+
+`GetMessageByID` and `RefreshCacheActive` select `deadline_date` as text using
+`CAST(COALESCE(substr(deadline_date,1,10),'') AS TEXT) AS deadline_day`. This
+avoids a remote libsql driver conversion failure when scanning a `DATE` into
+`sql.NullTime`; `NULL` becomes an empty string for the generated string field
+and existing `parseNullDate` mapper, and the stored calendar date is preserved
+without timezone conversion.
 
 ---
 

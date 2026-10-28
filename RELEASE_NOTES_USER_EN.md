@@ -2,6 +2,12 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes - v2.4.10 (2026-10-28 UTC)
+
+- 🗓️ **Reliable deadline display**: Deadlines load correctly in task details and lists from the remote database, with the calendar date preserved.
+
+---
+
 # Release Notes - v2.4.9 (2026-10-28 UTC)
 
 - 🧩 **Accurate task updates**: Updates verify the task's user and room, and refresh its translation only when the title changes.

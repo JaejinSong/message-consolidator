@@ -2,6 +2,13 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes (Tech) - v2.4.10 (2026-10-28 UTC)
+
+- [FIX] Select the date portion of deadlines as TEXT in `GetMessageByID` and `RefreshCacheActive`, avoiding the remote libsql driver's `DATE` to `sql.NullTime` conversion failure while preserving NULL and calendar dates without timezone shifts.
+- [TEST] Hrana HTTP-driver regression coverage and SQLite cache cold/warm checks pass.
+
+---
+
 # Release Notes (Tech) - v2.4.9 (2026-10-28 UTC)
 
 - [FIX] Verify email and room ownership in `UpdateTaskFullAppend`, and delete prior translations in the same transaction as a title change. Appends with the same title preserve translations.

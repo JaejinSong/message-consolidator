@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/tursodatabase/libsql-client-go/libsql"
 	"message-consolidator/db"
+
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 type deadlineDriverValue struct {

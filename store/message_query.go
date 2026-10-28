@@ -208,7 +208,7 @@ func toConsolidatedFromByID(row db.GetMessageByIDRow) ConsolidatedMessage {
 		row.ConsolidatedContext, row.Metadata, row.SourceChannels,
 		row.RequesterType, row.AssigneeType, row.Subtasks,
 		row.AssignedAt, row.CompletedAt, row.UpdatedAt,
-		row.DeadlineDate, row.DeadlineInferred,
+		parseNullDate(row.DeadlineDay), row.DeadlineInferred,
 	)
 }
 

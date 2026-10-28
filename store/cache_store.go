@@ -7,9 +7,10 @@ import (
 	"message-consolidator/db"
 	"message-consolidator/logger"
 
-	"golang.org/x/sync/singleflight"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -134,7 +135,7 @@ func buildMessages(rows []db.RefreshCacheActiveRow, resolver map[string]Resolved
 			r.ConsolidatedContext, r.Metadata, r.SourceChannels,
 			reqType, asgType, r.Subtasks,
 			r.AssignedAt, r.CompletedAt, r.UpdatedAt,
-			r.DeadlineDate, r.DeadlineInferred,
+			parseNullDate(r.DeadlineDay), r.DeadlineInferred,
 		)
 		msgs = append(msgs, m)
 		knownTS[m.SourceTS] = true
