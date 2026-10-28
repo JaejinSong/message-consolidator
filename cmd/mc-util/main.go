@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	"message-consolidator/config"
 	"message-consolidator/logger"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -36,7 +38,9 @@ func main() {
 	case "wa-pair":
 		runWAPair(cfg)
 	case "release-notes":
-		runReleaseNotes(cfg)
+		if err := runReleaseNotes(context.Background(), cfg); err != nil {
+			log.Fatal(err)
+		}
 	case "dedup-tasks":
 		runDedupTasks(cfg)
 	case "extraction-quality":

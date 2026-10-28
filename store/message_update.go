@@ -407,23 +407,44 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[Mes
 }
 
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id MessageID, newTask, newOriginalText string) error {
-	// Why: An empty newTask would overwrite the existing title and hide the row.
-	// Fall back to append-only path so original_text still grows for audit while
-	// task text is preserved.
 	if strings.TrimSpace(newTask) == "" {
 		logger.Warnf("[STORE] UpdateTaskFullAppend: empty newTask for id=%d, falling back to append-only", id)
+		if q == nil {
+			q = GetDB()
+		}
 		return AppendOriginalText(ctx, q, email, room, id, newOriginalText)
 	}
-	err := db.New(q).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
-		Task:         nullString(newTask),
-		OriginalText: nullString(newOriginalText),
-		ID:           int64(id),
-		UserEmail:    nullString(email),
-		Room:         nullString(room),
+	updated := false
+	err := withMessageTitleTx(ctx, q, func(qw Querier) error {
+		row, err := db.New(qw).GetMessageByID(ctx, int64(id))
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read title before update: %w", err)
+		}
+		if row.UserEmail != email || row.Room != room {
+			return nil
+		}
+		if err := db.New(qw).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{
+			Task:         nullString(newTask),
+			OriginalText: nullString(newOriginalText),
+			ID:           int64(id),
+			UserEmail:    nullString(email),
+			Room:         nullString(room),
+		}); err != nil {
+			return fmt.Errorf("update message: %w", err)
+		}
+		if row.Task != newTask {
+			if err := invalidateTaskTranslation(ctx, qw, id); err != nil {
+				return err
+			}
+		}
+		updated = true
+		return nil
 	})
-	if err == nil {
+	if err == nil && updated {
 		InvalidateCacheActive(email)
-		InvalidateTaskTranslation(ctx, q, id)
 	}
 	return err
 }

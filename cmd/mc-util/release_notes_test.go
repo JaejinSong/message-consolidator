@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"message-consolidator/config"
@@ -62,9 +64,14 @@ func TestReleaseNotesFailureHelper(t *testing.T) {
 		return
 	}
 	key := ""
+	want := "initialize Gemini client"
 	if scenario == "generation" {
 		key = "test-key"
+		want = "request Gemini content"
 		http.DefaultTransport = failingReleaseTransport{}
 	}
-	runReleaseNotes(&config.Config{GeminiAPIKey: key})
+	err := runReleaseNotes(context.Background(), &config.Config{GeminiAPIKey: key})
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("expected contextual %s error, got %v", want, err)
+	}
 }

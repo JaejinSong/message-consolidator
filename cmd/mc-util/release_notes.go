@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 
 	"message-consolidator/ai/core"
 	"message-consolidator/config"
+	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
 
 	"google.golang.org/genai"
@@ -30,7 +30,7 @@ type TargetFile struct {
 	Path string
 }
 
-func runReleaseNotes(cfg *config.Config) {
+func runReleaseNotes(ctx context.Context, cfg *config.Config) error {
 	latestVer := getLatestVersion()
 	lastTime := getLatestTimeFromFile("RELEASE_NOTES_USER_KO.md")
 	commits := getCommitsSinceTime(lastTime)
@@ -38,8 +38,12 @@ func runReleaseNotes(cfg *config.Config) {
 
 	logger.Infof("[RELEASE] Baseline: %s (%s), Next: v%s, New Commits: %d bytes", latestVer, lastTime, targetVersion, len(commits))
 
-	notes := fetchReleaseNotes(cfg, commits, targetVersion)
+	notes, err := fetchReleaseNotes(ctx, cfg, commits, targetVersion)
+	if err != nil {
+		return fmt.Errorf("generate release notes: %w", err)
+	}
 	dispatchReleaseNotes(notes, targetVersion)
+	return nil
 }
 
 func getLatestVersion() string {
@@ -95,12 +99,15 @@ func getCommitsSinceTime(lastTime string) string {
 	return commits
 }
 
-func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotesJSON {
-	ctx := context.Background()
-	client, _ := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  cfg.GeminiAPIKey,
-		Backend: genai.BackendGeminiAPI,
+func fetchReleaseNotes(ctx context.Context, cfg *config.Config, commits, version string) (ReleaseNotesJSON, error) {
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:     cfg.GeminiAPIKey,
+		Backend:    genai.BackendGeminiAPI,
+		HTTPClient: whataphttpx.Client(),
 	})
+	if err != nil {
+		return ReleaseNotesJSON{}, fmt.Errorf("initialize Gemini client: %w", err)
+	}
 
 	prompt := loadPrompt(commits, version)
 	logger.Infof("[AI] Payload size: %d bytes", len(prompt))
@@ -108,9 +115,9 @@ func fetchReleaseNotes(cfg *config.Config, commits, version string) ReleaseNotes
 	resp, err := client.Models.GenerateContent(ctx, "gemini-3-flash-preview", genai.Text(prompt),
 		&genai.GenerateContentConfig{ResponseMIMEType: "application/json"})
 	if err != nil {
-		log.Fatal(err)
+		return ReleaseNotesJSON{}, fmt.Errorf("request Gemini content: %w", err)
 	}
-	return parseAIResponse(resp)
+	return parseAIResponse(resp), nil
 }
 
 func loadPrompt(commits, version string) string {
