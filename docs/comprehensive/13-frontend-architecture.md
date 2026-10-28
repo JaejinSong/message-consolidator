@@ -387,15 +387,19 @@ proxy: {
 동시다발적 번역 요청이 개별 API 호출로 폭증하는 것을 방지합니다. 50ms 내에 수집된 모든 번역 요청을 단일 `POST /tasks/translate-batch` 호출로 병합합니다.
 
 ```
-requestTranslation(id, lang)  →  queue.set(lang, ids)
+requestTranslation(id, lang, sourceTitle?)  →  queue by (id, lang, sourceTitle)
                                       │
                               setTimeout(flush, 50ms)
                                       │
                               POST /tasks/translate-batch
-                                  { task_ids: [...], lang }
+                                  { task_ids: [...], lang, source_titles: { [id]: title } }
 ```
 
-`Map<string, Promise>` 구조로 동일 ID·언어 조합의 중복 요청을 dedup합니다.
+Pending 요청은 `(id, lang, sourceTitle)` tuple로 식별하고, flush 시 실행 중인
+항목의 identity를 캡처합니다. 완료 정리는 같은 identity의 항목만 제거해 새
+제목으로 들어온 후속 요청을 보존합니다. 앱은 응답을 적용하기 전에 현재
+제목과 source title을 비교하므로 제목 수정 뒤 도착한 이전 번역은 표시하지
+않습니다.
 
 ### 5.5 isApiError 패턴
 

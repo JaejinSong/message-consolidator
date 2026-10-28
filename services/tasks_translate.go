@@ -35,10 +35,12 @@ func (s *TasksService) ApplyTranslations(ctx context.Context, email, lang string
 		return
 	}
 	ids := make([]store.MessageID, len(msgs))
+	sources := make(map[store.MessageID]string, len(msgs))
 	for i, m := range msgs {
 		ids[i] = m.ID
+		sources[m.ID] = m.Task
 	}
-	translations, _ := store.GetTaskTranslationsBatch(ctx, ids, lang)
+	translations, _ := store.GetTaskTranslationsBatch(ctx, ids, lang, sources)
 	var missingIDs []store.MessageID
 	for i := range msgs {
 		if raw, ok := translations[msgs[i].ID]; ok {
@@ -74,8 +76,13 @@ func (s *TasksService) ProcessBatchTranslation(ctx context.Context, email string
 		return nil, fmt.Errorf("service not ready")
 	}
 
-	cached, _ := store.GetTaskTranslationsBatch(ctx, taskIDs, lang)
-	missingIDs := FilterMissingIDs(taskIDs, cached)
+	prepared, sources := s.PrepareTranslateRequestsWithSources(ctx, email, taskIDs, nil)
+	eligibleIDs := make([]store.MessageID, len(prepared))
+	for i, task := range prepared {
+		eligibleIDs[i] = task.ID
+	}
+	cached, _ := store.GetTaskTranslationsBatch(ctx, eligibleIDs, lang, sources)
+	missingIDs := FilterMissingIDs(eligibleIDs, cached)
 
 	newTrans := make(map[store.MessageID]string)
 	if len(missingIDs) > 0 {
@@ -105,8 +112,25 @@ func (s *TasksService) PrepareTranslateRequests(ctx context.Context, email strin
 	return s.prepareTranslateRequests(ctx, email, ids)
 }
 
+func (s *TasksService) PrepareTranslateRequestsWithSources(ctx context.Context, email string, ids []store.MessageID, expected map[store.MessageID]string) ([]store.TranslateRequest, map[store.MessageID]string) {
+	var reqs []store.TranslateRequest
+	sources := make(map[store.MessageID]string)
+	for _, id := range ids {
+		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
+		if err != nil || msg.UserEmail != email {
+			continue
+		}
+		if title, ok := expected[id]; ok && title != msg.Task {
+			continue
+		}
+		reqs = append(reqs, BuildTranslateRequest(id, msg.Task, msg.Subtasks))
+		sources[id] = msg.Task
+	}
+	return reqs, sources
+}
+
 func (s *TasksService) executeBatchTranslation(ctx context.Context, email string, ids []store.MessageID, lang string) (map[store.MessageID]string, error) {
-	reqs := s.prepareTranslateRequests(ctx, email, ids)
+	reqs, sources := s.PrepareTranslateRequestsWithSources(ctx, email, ids, nil)
 	if len(reqs) == 0 {
 		return nil, nil
 	}
@@ -122,21 +146,15 @@ func (s *TasksService) executeBatchTranslation(ctx context.Context, email string
 		}
 	}
 
-	if saveErr := store.SaveTaskTranslationsBulk(ctx, lang, batchMap); saveErr != nil {
-		logger.Warnf("[TASKS] SaveTaskTranslationsBulk failed lang=%s: %v", lang, saveErr)
+	accepted, saveErr := store.SaveTaskTranslationsForSources(ctx, lang, batchMap, sources)
+	if saveErr != nil {
+		logger.Warnf("[TASKS] save translation failed lang=%s: %v", lang, saveErr)
 	}
-	return batchMap, err
+	return accepted, err
 }
 
 func (s *TasksService) prepareTranslateRequests(ctx context.Context, email string, ids []store.MessageID) []store.TranslateRequest {
-	var reqs []store.TranslateRequest
-	for _, id := range ids {
-		msg, err := store.GetMessageByID(ctx, store.GetDB(), email, id)
-		if err != nil {
-			continue
-		}
-		reqs = append(reqs, BuildTranslateRequest(id, msg.Task, msg.Subtasks))
-	}
+	reqs, _ := s.PrepareTranslateRequestsWithSources(ctx, email, ids, nil)
 	return reqs
 }
 

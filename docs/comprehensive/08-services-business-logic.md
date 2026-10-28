@@ -174,6 +174,15 @@ StripOriginalText         // reduce payload: set HasOriginal flag, clear field
 single batch call. Missing IDs trigger `triggerJITTranslation`, a goroutine that
 runs `ProcessBatchTranslation` with a 60-second timeout, so the current response
 returns English immediately and the translation appears on the next page load.
+Translation requests carry a source-title snapshot for stale-request checks.
+Batch singleflight is keyed by tenant, language, and translation requests
+containing each message ID and `Text`; `Text` is the title alone or a JSON
+payload containing the title and subtasks. The server rejects a request whose
+captured source title no longer matches the current task before AI work, and
+only accepts cached results while that title still matches. JIT processing uses
+the captured source title as well. Message lookups also verify that the loaded
+row belongs to the requesting tenant before including it in cache or AI work.
+Translation writes use a conditional title match and return only accepted IDs.
 
 The translated payload format (stored in `translated_text`):
 - Plain string when no subtasks

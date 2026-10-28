@@ -168,3 +168,29 @@ func TestTranslationRequestsRejectForeignMessage(t *testing.T) {
 		t.Fatalf("foreign content reached translation: %v, %v", reqs, sources)
 	}
 }
+
+func TestJITRejectsForeignCachedTranslation(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	ctx := context.Background()
+	result, err := store.GetDB().ExecContext(ctx, "INSERT INTO messages(user_email, task, source, source_ts) VALUES(?, 'Private title', 'slack', ?)", testutil.RandomEmail("owner"), testutil.RandomTS("private"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawID, _ := result.LastInsertId()
+	id := store.MessageID(rawID)
+	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{id: "Private translation"}); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewTasksService(NewTranslationService(nil), nil)
+	results, err := svc.ProcessBatchTranslation(ctx, "other@example.com", []store.MessageID{id}, "ko")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Success || results[0].TranslatedText != "" {
+		t.Fatalf("foreign translation leaked: %+v", results)
+	}
+}

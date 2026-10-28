@@ -2,6 +2,15 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes (Tech) - v2.4.8 (2026-10-27 UTC)
+
+- [FIX] Carry `deadline_date` and `deadline_inferred` through `GetMessageByID`, the active-message cache query, and sqlc mapping to preserve explicit and inferred deadlines during title edits.
+- [FIX] Send an optional source-title snapshot and singleflight by `(tenant, language, message ID, Text)`. Verify row ownership before cache or AI work, exclude stale titles, and conditionally save only IDs whose current title still matches; JIT uses the captured snapshot too.
+- [FIX] Key frontend pending translations by `(id, lang, sourceTitle)` and send batch `source_titles`. Clear only entries matching the executing identity and reject responses that do not match the current title.
+- [TEST] Frontend: 38 files / 576 tests, TypeScript check, and production build pass. Deadline, HTTP/JIT translation races, and ownership regressions pass. Full `go test -race ./...` and Go build pass.
+
+---
+
 # Release Notes (Tech) - v2.4.7 (2026-10-27 UTC)
 
 - [REFACTOR] Unify extraction guarding and task building through `GuardAndBuild`; return the guarded item with the message so callers retain routing policy. Preserve incoming IDs and pass completion fallback assignee input separately.

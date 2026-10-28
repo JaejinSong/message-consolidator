@@ -2,6 +2,14 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes - v2.4.8 (2026-10-27 UTC)
+
+- 🗓️ **Preserved deadlines**: Editing a title keeps both explicit and inferred deadline details.
+- 🌐 **Accurate translation updates**: If a title changes while translation is in progress, the old title's translation is not applied to the new title.
+- ⚡ **Efficient translation work**: Requests for the same task, language, and title are grouped, while requests for a changed title are handled separately.
+
+---
+
 # Release Notes - v2.4.7 (2026-10-27 UTC)
 
 - 👤 **Preserved task ownership**: Requester and assignee details stay consistent, and new tasks from completed threads retain the prior assignee and date context.

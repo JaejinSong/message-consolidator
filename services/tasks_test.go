@@ -119,7 +119,9 @@ func TestPrepareMessagesForClient_CategoryStableAcrossLang(t *testing.T) {
 		}}
 	}
 
-	// Pre-seed KO translation so ApplyTranslations hits the cache and skips JIT.
+	if _, err := store.GetDB().ExecContext(ctx, "INSERT INTO messages(id, user_email, task, source, source_ts) VALUES(101, ?, ?, 'slack', ?)", email, taskEN, testutil.RandomTS("category-translation")); err != nil {
+		t.Fatalf("seed translation source: %v", err)
+	}
 	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{101: taskKO}); err != nil {
 		t.Fatalf("seed translation: %v", err)
 	}

@@ -37,8 +37,9 @@ func (q *Queries) GetTaskTranslation(ctx context.Context, arg GetTaskTranslation
 }
 
 const getTaskTranslationsBatch = `-- name: GetTaskTranslationsBatch :many
-SELECT message_id, translated_text FROM task_translations 
-WHERE language_code = ? AND message_id IN (/*SLICE:message_ids*/?)
+SELECT tt.message_id, tt.translated_text, m.task FROM task_translations tt
+JOIN messages m ON m.id = tt.message_id
+WHERE tt.language_code = ? AND tt.message_id IN (/*SLICE:message_ids*/?)
 `
 
 type GetTaskTranslationsBatchParams struct {
@@ -47,8 +48,9 @@ type GetTaskTranslationsBatchParams struct {
 }
 
 type GetTaskTranslationsBatchRow struct {
-	MessageID      sql.NullInt64 `json:"message_id"`
-	TranslatedText string        `json:"translated_text"`
+	MessageID      sql.NullInt64  `json:"message_id"`
+	TranslatedText string         `json:"translated_text"`
+	Task           sql.NullString `json:"task"`
 }
 
 func (q *Queries) GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error) {
@@ -71,7 +73,7 @@ func (q *Queries) GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTrans
 	var items []GetTaskTranslationsBatchRow
 	for rows.Next() {
 		var i GetTaskTranslationsBatchRow
-		if err := rows.Scan(&i.MessageID, &i.TranslatedText); err != nil {
+		if err := rows.Scan(&i.MessageID, &i.TranslatedText, &i.Task); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -83,6 +85,34 @@ func (q *Queries) GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTrans
 		return nil, err
 	}
 	return items, nil
+}
+
+const saveTaskTranslationForSource = `-- name: SaveTaskTranslationForSource :one
+INSERT INTO task_translations (message_id, language_code, translated_text)
+SELECT m.id, ?1, ?2 FROM messages m
+WHERE m.id = ?3 AND m.task = ?4
+ON CONFLICT (message_id, language_code)
+DO UPDATE SET translated_text = EXCLUDED.translated_text
+RETURNING message_id
+`
+
+type SaveTaskTranslationForSourceParams struct {
+	LanguageCode   string         `json:"language_code"`
+	TranslatedText string         `json:"translated_text"`
+	MessageID      int64          `json:"message_id"`
+	SourceTask     sql.NullString `json:"source_task"`
+}
+
+func (q *Queries) SaveTaskTranslationForSource(ctx context.Context, arg SaveTaskTranslationForSourceParams) (sql.NullInt64, error) {
+	row := q.db.QueryRowContext(ctx, saveTaskTranslationForSource,
+		arg.LanguageCode,
+		arg.TranslatedText,
+		arg.MessageID,
+		arg.SourceTask,
+	)
+	var message_id sql.NullInt64
+	err := row.Scan(&message_id)
+	return message_id, err
 }
 
 const upsertTaskTranslation = `-- name: UpsertTaskTranslation :exec

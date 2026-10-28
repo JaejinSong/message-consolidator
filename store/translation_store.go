@@ -3,12 +3,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"message-consolidator/db"
 	"strings"
 )
 
-func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langCode string) (map[MessageID]string, error) {
+func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langCode string, sourceTitles ...map[MessageID]string) (map[MessageID]string, error) {
 	if langCode == "" {
 		langCode = "en"
 	}
@@ -28,6 +29,11 @@ func GetTaskTranslationsBatch(ctx context.Context, messageIDs []MessageID, langC
 		return nil, fmt.Errorf("get task translations: %w", err)
 	}
 	for _, row := range rows {
+		if len(sourceTitles) > 0 {
+			if source, ok := sourceTitles[0][MessageID(row.MessageID.Int64)]; ok && source != row.Task.String {
+				continue
+			}
+		}
 		results[MessageID(row.MessageID.Int64)] = row.TranslatedText
 	}
 	return results, nil
@@ -55,6 +61,31 @@ func SaveTaskTranslationsBulk(ctx context.Context, langCode string, results map[
 	conn := GetDB()
 	_, err := conn.ExecContext(ctx, query, args...)
 	return err
+}
+
+func SaveTaskTranslationsForSources(ctx context.Context, langCode string, results, sources map[MessageID]string) (map[MessageID]string, error) {
+	if langCode == "" {
+		langCode = "en"
+	}
+	accepted := make(map[MessageID]string)
+	queries := db.New(GetDB())
+	for id, text := range results {
+		source, ok := sources[id]
+		if !ok {
+			continue
+		}
+		_, err := queries.SaveTaskTranslationForSource(ctx, db.SaveTaskTranslationForSourceParams{
+			MessageID: int64(id), LanguageCode: langCode, TranslatedText: text, SourceTask: nullString(source),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return accepted, fmt.Errorf("save task translation for source: %w", err)
+		}
+		accepted[id] = text
+	}
+	return accepted, nil
 }
 
 // Why: Reusing the caller's transaction avoids deadlocks with a single connection.

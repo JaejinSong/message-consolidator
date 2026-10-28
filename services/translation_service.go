@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"message-consolidator/ai"
 	"message-consolidator/ai/core"
@@ -63,11 +65,7 @@ func (s *TranslationService) TranslateBatch(ctx context.Context, email string, t
 		return nil, nil
 	}
 
-	ids := make([]store.MessageID, len(tasks))
-	for i, t := range tasks {
-		ids[i] = t.ID
-	}
-	key := fmt.Sprintf("batch-%s-%v", lang, ids)
+	key := batchTranslationKey(email, tasks, lang)
 
 	// any 사유: singleflight.Group.Do callback 시그니처 — []ai.TranslationResult로 단일 타입 단정.
 	val, err, _ := s.requestGroup.Do(key, func() (any, error) {
@@ -80,6 +78,15 @@ func (s *TranslationService) TranslateBatch(ctx context.Context, email string, t
 	// successes (already token-attributed) so callers can cache them instead of double-spending.
 	partial, _ := val.([]ai.TranslationResult)
 	return partial, err
+}
+
+func batchTranslationKey(email string, tasks []store.TranslateRequest, lang string) string {
+	payload, _ := json.Marshal(struct {
+		Email string
+		Lang  string
+		Tasks []store.TranslateRequest
+	}{email, lang, tasks})
+	return fmt.Sprintf("batch-%x", sha256.Sum256(payload))
 }
 
 // GetLanguageName maps ISO 639-1 language codes to descriptive names for the AI prompt.

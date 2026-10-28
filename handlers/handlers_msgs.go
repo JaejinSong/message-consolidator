@@ -452,8 +452,9 @@ func (a *API) HandleMergeTasks(w http.ResponseWriter, r *http.Request) {
 func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
 	var req struct {
-		TaskIDs []store.MessageID `json:"task_ids"`
-		Lang    string            `json:"lang"`
+		TaskIDs      []store.MessageID          `json:"task_ids"`
+		Lang         string                     `json:"lang"`
+		SourceTitles map[store.MessageID]string `json:"source_titles"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid request format")
@@ -461,8 +462,13 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 1. [Pre-filter] Get existing translations from DB/Cache
-	cached, _ := store.GetTaskTranslationsBatch(r.Context(), req.TaskIDs, req.Lang)
-	missingIDs := services.FilterMissingIDs(req.TaskIDs, cached)
+	prepared, sourceTitles := a.Tasks.PrepareTranslateRequestsWithSources(r.Context(), email, req.TaskIDs, req.SourceTitles)
+	eligibleIDs := make([]store.MessageID, len(prepared))
+	for i, task := range prepared {
+		eligibleIDs[i] = task.ID
+	}
+	cached, _ := store.GetTaskTranslationsBatch(r.Context(), eligibleIDs, req.Lang, sourceTitles)
+	missingIDs := services.FilterMissingIDs(eligibleIDs, cached)
 
 	// [Guard Clause] If all tasks are already translated, return immediately.
 	if len(missingIDs) == 0 {
@@ -471,7 +477,7 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 2. [Batch AI] Translate only missing tasks
-	missingReqs := a.Tasks.PrepareTranslateRequests(r.Context(), email, missingIDs)
+	missingReqs, sources := a.Tasks.PrepareTranslateRequestsWithSources(r.Context(), email, missingIDs, sourceTitles)
 	newTrans, err := a.Tasks.GetTranslationService().TranslateBatch(r.Context(), email, missingReqs, req.Lang)
 	if err != nil {
 		handleAPIError(w, r, err, "[TRANSLATE]", "Translation service failed")
@@ -490,7 +496,11 @@ func (a *API) HandleTranslateBatchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if len(successMap) > 0 {
-		_ = store.SaveTaskTranslationsBulk(r.Context(), req.Lang, successMap)
+		var saveErr error
+		successMap, saveErr = store.SaveTaskTranslationsForSources(r.Context(), req.Lang, successMap, sources)
+		if saveErr != nil {
+			logger.Warnf("[TRANSLATE] save translation failed: %v", saveErr)
+		}
 	}
 
 	a.respondWithResults(w, req.TaskIDs, cached, successMap, errorMap)

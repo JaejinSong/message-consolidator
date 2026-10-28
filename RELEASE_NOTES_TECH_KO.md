@@ -2,6 +2,15 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# 업데이트 소식 (기술) - v2.4.8 (2026-10-27 UTC)
+
+- [FIX] `GetMessageByID` 및 활성 메시지 cache 쿼리/sqlc mapping에 `deadline_date`, `deadline_inferred`를 전달해 캐시 유무와 관계없이 상세 조회의 명시·추론 마감일을 보존.
+- [FIX] 번역 요청에 선택적 source title snapshot을 전달하고, `(tenant, language, message ID, Text)` 기준으로 singleflight 처리. 조회 행의 tenant 소유권을 확인하고, 제목 불일치 시 cache/AI 요청에서 제외하며 conditional 저장은 현재 제목과 일치한 ID만 반환. JIT도 snapshot 기준으로 실행.
+- [FIX] 프런트엔드 번역 pending identity를 `(id, lang, sourceTitle)`로 바꾸고 batch `source_titles` payload를 전달. 실행 항목 identity와 일치하는 요청만 정리하고 현재 제목과 다른 응답 적용을 차단.
+- [TEST] 프런트엔드 38개 파일·576개 테스트 통과, TypeScript 검사와 build 통과. 명시·추론·NULL 마감일 및 HTTP/JIT 번역 경합·소유권 회귀 검증 완료. `go test -race ./...` 전체 통과, Go build 통과.
+
+---
+
 # 업데이트 소식 (기술) - v2.4.7 (2026-10-27 UTC)
 
 - [REFACTOR] 추출 guard와 task builder를 `GuardAndBuild` 경로로 통합하고, guarded item과 메시지를 함께 반환해 caller의 라우팅 정책을 보존. incoming ID를 유지하고 completion fallback 담당자 입력은 별도로 전달.

@@ -272,6 +272,7 @@ type Querier interface {
 	// Note: Batching with VALUES %s is not supported by sqlc directly.
 	// Using a single insert that can be called in a transaction.
 	SaveMessagesBase(ctx context.Context, arg SaveMessagesBaseParams) ([]SaveMessagesBaseRow, error)
+	SaveTaskTranslationForSource(ctx context.Context, arg SaveTaskTranslationForSourceParams) (sql.NullInt64, error)
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
 	SearchContacts(ctx context.Context, arg SearchContactsParams) ([]SearchContactsRow, error)

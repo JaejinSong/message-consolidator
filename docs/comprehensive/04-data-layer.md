@@ -229,6 +229,8 @@ erDiagram
         text thread_id
         text assignee
         text requester
+        text deadline_date
+        int deadline_inferred
         text lifecycle "VIRTUAL"
         int is_archived "VIRTUAL"
     }
@@ -450,7 +452,16 @@ erDiagram
 - **추가 컬럼**: `requester_canonical`, `assignee_canonical`, `requester_type`, `assignee_type`
 - **중요**: 뷰는 `rebuildViews()` 에서 `DROP IF EXISTS → CREATE` 패턴으로 스키마 변경 후 항상 재구성
 
+`GetMessageByID` 상세 조회는 활성 메시지 캐시 유무와 관계없이
+`deadline_date`, `deadline_inferred`를 SQL과 row mapping으로 전달합니다.
+따라서 명시·추론 마감일 구분과 날짜가 설정되지 않은 상태도 상세 조회에서
+보존됩니다.
+
 **English:** `v_messages` is rebuilt on every `EnsureSchemaAndSeeds` call (via `rebuildViews`) to keep it current with any schema changes. Store-layer cache loads (`RefreshCacheActive`/`RefreshCacheArchive`) query `messages` directly — not `v_messages` — to skip the view JOIN overhead; contact resolution is then performed in-process in Go via `BuildContactResolver`. The view is used for single-row lookups (`GetMessageByID`) and report queries where contact resolution accuracy matters more than throughput.
+
+`GetMessageByID` detail lookups include `deadline_date` and `deadline_inferred`
+regardless of active-message cache state. Its SQL and row mapping preserve the
+explicit/inferred distinction and an unset date.
 
 ---
 
