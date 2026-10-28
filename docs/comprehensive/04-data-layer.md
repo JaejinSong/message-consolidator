@@ -666,7 +666,11 @@ _, err, _ := sfGroup.Do(sfKey, func() (any, error) {
 - `InvalidateCacheActive(email)` — 활성 메시지 캐시만 삭제. 아카이브 캐시 미영향. 사용처: `SaveMessage`, `UpdateTaskText`, `AppendOriginalText` 등 활성 메시지 변경
 - `InvalidateCache(email)` — 활성 + 아카이브 캐시 모두 삭제. 사용처: `MarkMessageDone` (lifecycle 변경, is_archived flip), `MergeTasksWithTitle` (category='merged' 설정)
 
+`UpdateTaskFullAppend`는 `(email, room, id)` 소유권을 확인한 뒤 제목을 갱신하고 원문을 덧붙입니다. 제목이 실제로 바뀔 때만 기존 번역을 같은 트랜잭션에서 삭제하며, 같은 제목의 append는 번역을 유지합니다. 전달된 트랜잭션은 호출자가 관리합니다.
+
 **English:** The distinction exists because `is_archived` is a virtual column derived from `done`, `is_deleted`, and `category`. Any write that changes those values must flush both caches. Writes that only update `task` text or `subtasks` can safely invalidate only the active cache.
+
+`UpdateTaskFullAppend` verifies `(email, room, id)` ownership before updating the title and appending original text. It deletes prior translations in the same transaction only when the title changes; appends that keep the title preserve the translation. The caller retains ownership of a supplied transaction.
 
 ### 6.5 Auto-Archive 쓰레기 수거
 

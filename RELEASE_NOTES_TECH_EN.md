@@ -2,6 +2,14 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# Release Notes (Tech) - v2.4.9 (2026-10-28 UTC)
+
+- [FIX] Verify email and room ownership in `UpdateTaskFullAppend`, and delete prior translations in the same transaction as a title change. Appends with the same title preserve translations.
+- [FIX] Return Gemini initialization/API errors from `mc-util release-notes`; release notes and backup files are written only after generation succeeds.
+- [TEST] Full `go test -race ./...`, affected-package `go vet`, and Go builds pass. Regressions verify file preservation on AI failures and rollback on translation deletion failures.
+
+---
+
 # Release Notes (Tech) - v2.4.8 (2026-10-27 UTC)
 
 - [FIX] Carry `deadline_date` and `deadline_inferred` through `GetMessageByID`, the active-message cache query, and sqlc mapping to preserve explicit and inferred deadlines during title edits.

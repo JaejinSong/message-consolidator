@@ -397,6 +397,10 @@ channels.DefaultWAManager.FetchUserWAJID = func(email string) (string, error) {
 3. Gemini `gemini-3-flash-preview`로 JSON 형식 릴리즈 노트 생성
 4. 4개 파일에 prepend (기존 파일은 `.bak` 백업 후 덮어쓰기)
 
+Gemini 클라이언트 초기화 또는 생성 요청이 실패하면 오류를 반환하며 릴리즈 노트와 백업을 쓰지 않습니다. 초기화와 생성 요청이 모두 성공한 뒤 파일 갱신을 시작합니다.
+
+Gemini client initialization or generation errors return before any release-note or backup writes. File updates begin only after both steps succeed.
+
 ```
 RELEASE_NOTES_TECH_EN.md
 RELEASE_NOTES_TECH_KO.md

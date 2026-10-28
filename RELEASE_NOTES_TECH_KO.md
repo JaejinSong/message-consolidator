@@ -2,6 +2,14 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# 업데이트 소식 (기술) - v2.4.9 (2026-10-28 UTC)
+
+- [FIX] `UpdateTaskFullAppend`에서 이메일·room 소유권을 확인하고, 제목 변경과 기존 번역 삭제를 같은 transaction으로 처리. 같은 제목의 append는 번역을 보존.
+- [FIX] `mc-util release-notes`가 Gemini 초기화/API 오류를 반환하며, 성공 전에는 릴리즈 노트나 백업 파일을 쓰지 않도록 처리.
+- [TEST] 전체 `go test -race ./...`, 대상 패키지 `go vet`, Go build 통과. 초기화/API 실패의 파일 보존 및 번역 삭제 실패의 롤백을 검증.
+
+---
+
 # 업데이트 소식 (기술) - v2.4.8 (2026-10-27 UTC)
 
 - [FIX] `GetMessageByID` 및 활성 메시지 cache 쿼리/sqlc mapping에 `deadline_date`, `deadline_inferred`를 전달해 캐시 유무와 관계없이 상세 조회의 명시·추론 마감일을 보존.

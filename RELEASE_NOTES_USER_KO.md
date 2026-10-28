@@ -2,6 +2,13 @@
 > **이 문서는 종합 문서(SSOT)의 직전 스냅샷입니다 / Prior snapshot superseded by SSOT.**
 > 최신 정식 버전 / Latest authoritative version: [docs/comprehensive/INDEX.md](docs/comprehensive/INDEX.md)
 
+# 업데이트 소식 - v2.4.9 (2026-10-28 UTC)
+
+- 🧩 **정확한 작업 추가**: 다른 사용자나 방의 작업은 수정하지 않으며, 제목이 바뀐 경우에만 이전 번역을 함께 정리합니다.
+- 🛡️ **안전한 릴리즈 노트 생성**: 생성에 실패하면 기존 릴리즈 노트와 백업 파일을 그대로 둡니다.
+
+---
+
 # 업데이트 소식 - v2.4.8 (2026-10-27 UTC)
 
 - 🗓️ **마감일 보존**: 제목을 수정해도 직접 지정한 마감일과 추론된 마감일이 유지됩니다.
