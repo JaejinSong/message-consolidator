@@ -185,7 +185,7 @@ go func() {
 | `services/reports_service.go` | `async-report` | 비동기 보고서 생성 |
 | `channels/telegram.go` | `tg-run-client`, `tg-hydrate-dialogs`, `tg-store-entities` | Telegram MTProto 고루틴 |
 | `channels/whatsapp.go` | `wa-save-contact`, `wa-save-contact-mention` | WhatsApp 이벤트 핸들러 |
-| `ai/gemini.go` | `ai-log-inference` | Gemini 호출 로그 고루틴 |
+| `ai/client.go` | `ai-log-inference` | Gemini 호출 로그 고루틴 |
 | `handlers/handlers_identity.go` | `proposal-job` | Identity 제안 비동기 잡 |
 
 ### 3.5 safego vs CLAUDE.md ctx 가드의 관계

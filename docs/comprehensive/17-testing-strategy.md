@@ -1,6 +1,6 @@
 # 17. 테스트 전략 (Testing Strategy)
 
-> Cross-refs: → [03-backend-architecture.md] → [11-handlers-and-api.md] → [13-frontend-architecture.md] → [16-cli-and-tools.md]
+> Cross-refs: → [03-backend-architecture.md] → [11-handlers-and-api.md] → [13-frontend-architecture.md]
 
 ---
 
@@ -310,7 +310,7 @@ npm run test:watch     # 감시 모드 (개발 중)
 
 ## 6. 검증 도구 (verify/)
 
-`tests/verify-loading-ui.cjs` (빌드 아티팩트 정적 분석)와 `src/tests/verify-logic.ts` (로직 검증 스크립트)는 `bash unit-test.sh`의 4번째 병렬 태스크로 실행됩니다. CI 미포함 — 로컬 전용. `cmd/verify/*` Go 검증 도구 카탈로그 → [16-cli-and-tools.md §16.3](16-cli-and-tools.md).
+`tests/verify-loading-ui.cjs` (빌드 아티팩트 정적 분석)와 `src/tests/verify-logic.ts` (로직 검증 스크립트)는 `bash unit-test.sh`의 4번째 병렬 태스크로 실행됩니다. CI 미포함 — 로컬 전용.
 
 ---
 
@@ -355,7 +355,6 @@ WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 �
 | → [03-backend-architecture.md] | Handler → Service → Store 의존성 방향이 테스트 격리 전략 결정 |
 | → [11-handlers-and-api.md] | httptest 기반 핸들러 통합 테스트 대상 |
 | → [13-frontend-architecture.md] | Clean Architecture → vitest 순수 함수 테스트 가능 이유 |
-| → [16-cli-and-tools.md] | `mc-util`, `verify-logic.ts` 등 CLI 도구 검증 방법 |
 
 ### Recent Changes (변경 이력)
 

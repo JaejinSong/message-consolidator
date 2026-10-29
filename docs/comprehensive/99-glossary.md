@@ -106,7 +106,7 @@
 
 **Gemini**
 — Google의 멀티모달 LLM 시리즈. 이 프로젝트는 Flash-Lite(노이즈 필터), Flash(태스크 추출), Pro(리포트 생성) 세 계층으로 구분 사용.
-— [`ai/gemini.go`](../../ai/gemini.go)
+— [`ai/client.go`](../../ai/client.go)
 
 **Graceful Shutdown (그레이스풀 셧다운)**
 — SIGINT/SIGTERM 수신 시 외부 채널 연결 해제 → 메모리 플러시 → HTTP drain → DB 종료를 병렬·순서 보장하여 데이터 유실 없이 종료.

@@ -101,7 +101,7 @@ The job runs in a background goroutine. `proposalJobs` (in-memory map guarded by
 
 ### 3.5 commit ceaf099 — GetLatestThreadAssignee
 
-The most recent identity-aware addition is `GetLatestThreadAssignee` (`store/message_store.go`, commit ceaf099):
+The most recent identity-aware addition is `GetLatestThreadAssignee` (`store/message_query.go`, commit ceaf099):
 
 ```go
 // GetLatestThreadAssignee returns the most recent non-shared assignee in a thread (incl. done).
@@ -288,8 +288,6 @@ When a WhatsApp number matches an existing email-based contact by name (`handleW
 ## 6. Deduplication (Consolidate)
 
 Message-level deduplication is detailed in → [08-services-business-logic.md]. This section covers only the identity-resolution interaction.
-
-`services/consolidate.go` — `ConsolidateTasks` — merges AI-extracted `TodoItem` entries **within a single scan cycle** when they share the same `AffinityGroupID` and `AffinityScore >= 80`. This is pre-persistence deduplication, operating on in-memory `[]TodoItem` before any DB write.
 
 The identity connection: two tasks from different channels are only candidates for consolidation if the **assignee string matches** after normalization. If the same person is named "John" in Slack and "john.smith@example.com" in Gmail and both identifiers have been resolved to the same canonical contact, the normalized assignee will match, enabling cross-channel consolidation.
 

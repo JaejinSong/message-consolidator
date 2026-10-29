@@ -629,7 +629,7 @@ func RunInTx(ctx context.Context, fn func(tx *sql.Tx) error) error {
 
 **`withTx`** — 트랜잭션 전파 패턴 (caller가 tx를 전달하면 재사용, nil이면 신규 시작):
 ```go
-// store/message_store.go
+// store/message_save.go
 func withTx(ctx context.Context, q Querier, fn func(q Querier) error) error {
     if q == nil { return RunInTx(ctx, func(tx *sql.Tx) error { return fn(tx) }) }
     return fn(q)

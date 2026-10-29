@@ -68,7 +68,7 @@ Stage 3는 `report_summary.prompt` 프론트매터가 `gemini-3-flash-preview`(t
 **Gemini SDK 마이그레이션**: `chore(deps): migrate Gemini SDK to google.golang.org/genai` 커밋으로 SDK가 기존 버전에서 `google.golang.org/genai` (v1)으로 전환됐다. 클라이언트 생성 패턴:
 
 ```go
-// ai/gemini.go
+// ai/client.go
 client, err := genai.NewClient(ctx, &genai.ClientConfig{
     APIKey:     apiKey,
     Backend:    genai.BackendGeminiAPI,
@@ -170,7 +170,7 @@ logTokenUsage(ctx, email, "LiteFilter", source, model, 0, resp)  // gemini.go
 
 ## 5. Stage 2: Flash Task Extraction
 
-**파일**: `ai/gemini.go` (Analyze, AnalyzeWithContext), `ai/core/analyzers.go` (SourceAnalyzer 구현체), `ai/core/few_shots.go` (FewShot 풀), `ai/core/utils.go` (unmarshalAnalyze)
+**파일**: `ai/client.go` (Analyze, AnalyzeWithContext), `ai/core/analyzers.go` (SourceAnalyzer 구현체), `ai/core/few_shots.go` (FewShot 풀), `ai/core/utils.go` (unmarshalAnalyze)
 
 ### 진입 흐름
 
@@ -267,7 +267,7 @@ type contextTask struct {
 
 ## 6. Stage 2 세부: 태스크 파싱 & 디듀플리케이션
 
-**파일**: `ai/core/utils.go`, `ai/gemini.go` (parseAnalyzeResults)
+**파일**: `ai/core/utils.go`, `ai/client.go` (parseAnalyzeResults)
 
 ### sanitizeJSON — 3단계 정제
 

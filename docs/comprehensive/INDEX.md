@@ -2,15 +2,15 @@
 
 **최종 갱신 / Last Updated:** 2026-05-21
 **상태 / Status:** SSOT (Single Source of Truth)
-**총 분량 / Total:** 22 챕터 + INDEX
+**총 분량 / Total:** 21 챕터 + INDEX
 
 ## 한국어
 
-이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 22개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
+이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 21개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
 
 ## English
 
-This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 22 chapters. Legacy docs (`CLAUDE.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
+This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 21 chapters. Legacy docs (`CLAUDE.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
 
 ---
 
@@ -34,7 +34,6 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 13 | [frontend-architecture.md](13-frontend-architecture.md) | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
 | 14 | [frontend-ui-system.md](14-frontend-ui-system.md) | CSS 토큰·BEM·components·i18n | CSS tokens, BEM, components, i18n | [static/css/](../../static/css/), [src/components/](../../src/components/) |
 | 15 | [observability.md](15-observability.md) | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
-| 16 | [cli-and-tools.md](16-cli-and-tools.md) | 16 CLI 단위 (sim·verify·check·util·thinking-exp) | 16 CLI tools | [cmd/](../../cmd/) |
 | 17 | [testing-strategy.md](17-testing-strategy.md) | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
 | 18 | [build-and-deploy.md](18-build-and-deploy.md) | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
 | 19 | [user-manual.md](19-user-manual.md) | 최종 사용자 가이드 (채널 연동·FAQ) | End-user guide | (UI labels in [src/locales/](../../src/locales/)) |
@@ -70,7 +69,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 - **WhaTap APM 패턴 매트릭스**: 15 (7 영역)
 - **Graceful Shutdown 시퀀스**: 10, 03
 - **OAuth 흐름**: 12 (사용자 로그인), 05 (Gmail), 18 (.env)
-- **회귀 테스트 (AI)**: 17, 16 (verify/*)
+- **회귀 테스트 (AI)**: 17
 - **로그 3종 (logger/structured/ai)**: 15
 
 **English:**
@@ -133,7 +132,7 @@ done
 **한국어:**
 
 - **작성 방식**: Sonnet 4.6 sub-agent 20개 (Wave 1~4 순차, Wave 내부 병렬)
-- **흡수된 레거시 문서**: 9개 → 22 챕터
+- **흡수된 레거시 문서**: 9개 → 21 챕터
 - **모델**: sub-agent는 sonnet, 최종 INDEX/glossary는 main(Opus)
 - **WhaTap 부트스트랩 함정**: trace.Init 누락 시 silent no-op — chapter 15에 명시
 - **알려진 stale (레거시 문서 대비)**: 챕터별 "Deltas from legacy docs" 섹션에 분산 기록
@@ -141,7 +140,7 @@ done
 **English:**
 
 - Authored via 20 Sonnet 4.6 sub-agents (Wave 1–4 sequential, intra-wave parallel)
-- 9 legacy docs absorbed into 22 chapters
+- 9 legacy docs absorbed into 21 chapters
 - Sonnet for chapters, Opus for INDEX/glossary
 - WhaTap bootstrap pitfall (silent no-op when `trace.Init` missing) documented in chapter 15
 - Known stale items vs legacy: see "Deltas from legacy docs" sections within each chapter
@@ -162,13 +161,11 @@ done
 | (코드) | store/migrations/*.sql | — | 3 파일 삭제됨, migrations.go만 사용 | 04 |
 | (코드) | safego API | 가설 `safego.Go(ctx,fn)` | 실제 `safego.Recover(name)` 단일 | 10 |
 | (코드) | handlers_misc.go | 11 handler로 알려짐 | 12번째 파일 존재 | 11 |
-| (코드) | release_notes 자동화 | 미문서화 | mc-util release_notes.go 존재 | 16 |
 | (2026-05-21) | gemini.go 단일 파일 | — | `gemini_report.go` + `gemini_translate.go` 분리 완료 | 07 |
 | (2026-05-21) | scanner_slack.go 단일 파일 | — | `scanner_slack_classify.go` + `scanner_slack_threads.go` 분리 완료 | 06 |
 | (2026-05-21) | contacts_store.go 단일 파일 | — | `contacts_channel.go` + `contacts_link.go` + `contacts_resolve.go` 분리 완료 | 04 |
 | (2026-05-21) | telegram.go / whatsapp.go 단일 파일 | — | telegram: `_ingest.go` + `_groups.go`, whatsapp: `_ingest.go`, 공유 `msgbuffer.go` 분리 완료 | 05 |
 | (2026-05-21) | tasks.go / reports_service.go 단일 파일 | — | tasks: `_alias.go` + `_merge.go` + `_translate.go`, reports: `_prepare.go` + `_viz.go` 분리 완료 | 08 |
-| (2026-05-21) | thinking-exp CLI 도구 | 미문서화 | `cmd/thinking-exp/` — Gemini thinking 토큰 스케일링 실험 도구 | 16 |
 
 ---
 

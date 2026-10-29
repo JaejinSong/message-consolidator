@@ -198,7 +198,6 @@ Services are the single source of truth for domain rules. They call `store/` dir
 - **파일 목록 (발췌):**
   - [`services/tasks.go`](../../services/tasks.go)
   - [`services/reports_service.go`](../../services/reports_service.go)
-  - [`services/consolidate.go`](../../services/consolidate.go)
   - [`services/task_routing.go`](../../services/task_routing.go)
 - **외부 의존:** `ai/` (Gemini), `store/`, `channels/SlackClient`
 
@@ -219,7 +218,7 @@ Store is the single gateway to the database. It wraps sqlc-generated code, manag
 - **주요 파일:**
   - [`store/db.go`](../../store/db.go) — DB 초기화, 커넥션 풀, keepalive
   - [`store/migrations.go`](../../store/migrations.go) — 마이그레이션 실행
-  - [`store/message_store.go`](../../store/message_store.go) — 메시지 CRUD
+  - [`store/message_save.go`](../../store/message_save.go) · [`message_query.go`](../../store/message_query.go) · [`message_update.go`](../../store/message_update.go) — 메시지 CRUD
   - [`store/cache_store.go`](../../store/cache_store.go) — 인메모리 캐시
   - [`store/report_store.go`](../../store/report_store.go) — 리포트 CRUD
 - **외부 의존:** `tursodatabase/libsql-client-go`, `whatap/go-api/instrumentation/whatapsql`, `modernc.org/sqlite`
@@ -280,10 +279,9 @@ Scanner polls channels at randomized prime-second intervals (59–73 s) to avoid
 **English:**
 `ai/` is the Gemini SDK coupling layer — only files that directly import the SDK live here. Pure logic (prompts, parsers, analyzers, RAG) is isolated in `ai/core/`, which has no SDK dependency. Two model slots (analysis + translation) let heavier models be assigned only where needed.
 
-- **주요 심볼:** `GeminiClient`, `NewGeminiClient()`, `IdentityResolver`, `GeminiLiteFilter`, `EmbeddingClient`
+- **주요 심볼:** `GeminiClient`, `NewGeminiClient()`, `IdentityResolver`, `GeminiLiteFilter`
 - **주요 파일:**
-  - [`ai/gemini.go`](../../ai/gemini.go) — 클라이언트, 모델 분리
-  - [`ai/embedding.go`](../../ai/embedding.go) — 임베딩 클라이언트
+  - [`ai/client.go`](../../ai/client.go) — 클라이언트, 모델 분리
   - [`ai/identity_resolver.go`](../../ai/identity_resolver.go) — 발신자 아이덴티티 해석
   - [`ai/filter_service.go`](../../ai/filter_service.go) — 노이즈 게이트 필터
 - **외부 의존:** `google.golang.org/genai`, `whataphttpx.ClientWithAPIKey()`
@@ -403,19 +401,12 @@ DB 기본키를 타입 안전하게 다루기 위한 팬텀 타입 정의입니�
 ### 2.13 `cmd/` — 운영 유틸리티
 
 **한국어:**
-`cmd/` 아래에는 프로덕션 서버가 아닌 1회성 운영 도구와 시뮬레이터가 있습니다.
+`cmd/` 아래에는 프로덕션 서버가 아닌 운영 도구가 있습니다.
 
 **English:**
-`cmd/` contains one-off operational tools and simulators, not the production server binary.
+`cmd/` contains operational tools, not the production server binary.
 
 - `cmd/mc-util/` — 마이그레이션/관리 CLI
-- `cmd/check-models/` — Gemini 모델 가용성 확인
-- `cmd/check-slack-scope/` — Slack Bot Scope 진단
-- `cmd/reset-gmail-checkpoint/` — Gmail 체크포인트 초기화
-- `cmd/sim_d/`, `cmd/sim_daily/`, `cmd/sim_weekly/`, `cmd/sim_normalize/` — 스캔/리포트 시뮬레이터
-- `cmd/verify/` — 통합 검증 스크립트
-
-→ 운영 도구 상세: [16-cli-and-tools.md](16-cli-and-tools.md)
 
 ---
 
@@ -661,5 +652,4 @@ case <-ticker.C:
 | AI 엔진 (Gemini 클라이언트, RAG, 필터, 프롬프트) | [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) |
 | 인증 (Google OAuth 2.0 플로우, 세션 쿠키) | [12-auth-and-security.md](12-auth-and-security.md) |
 | 로깅·APM (WhaTap 계측, 로그 레벨, AI 로거) | [15-observability.md](15-observability.md) |
-| 운영 도구 (cmd/, 마이그레이션 CLI, 시뮬레이터) | [16-cli-and-tools.md](16-cli-and-tools.md) |
 | 도메인 모델 (Task, Report, User, Message) | [02-domain-model.md](02-domain-model.md) |

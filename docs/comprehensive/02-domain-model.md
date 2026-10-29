@@ -492,7 +492,7 @@ The constraints below are enforced at code or DB level. Violating them breaks da
 | I-5 | `contacts.UNIQUE(tenant_email, canonical_id)` — 테넌트 내 canonical_id는 유일 | DB UNIQUE 제약 |
 | I-6 | `identity_merge_candidates.UNIQUE(contact_id_a, contact_id_b)` — 동일 쌍 중복 후보 불가 | DB UNIQUE 제약 |
 | I-7 | `token_usage.UNIQUE(user_email, date, step, model, source, report_id, peak)` — 동일 차원 중복 행 불가. 비용 집계는 UPSERT로만 | DB UNIQUE 제약 |
-| I-8 | `done=0 ⇔ completed_at IS NULL` — `unmarkMessageDone`이 raw SQL로 함께 초기화. sqlc COALESCE 우회 사유 | `store/message_store.go#L172` |
+| I-8 | `done=0 ⇔ completed_at IS NULL` — `unmarkMessageDone`이 raw SQL로 함께 초기화. sqlc COALESCE 우회 사유 | `store/message_update.go` (`unmarkMessageDone`) |
 | I-9 | `is_archived`는 수정 불가 가상 컬럼 — `done`/`is_deleted`/`category`만 변경 가능 | DB GENERATED ALWAYS AS |
 | I-10 | `messages.requester` / `messages.assignee`는 `contacts.canonical_id` 텍스트 참조 — DB FK 없음. 정합성은 `AutoUpsertContact` + `contact_resolution` UPSERT 체인이 보장 | `store/contacts_store.go` |
 | I-11 | `contacts.master_contact_id`가 Non-NULL이면 마스터 행이 반드시 존재해야 함 (`REFERENCES contacts(id)`) — 순환 참조 방지는 애플리케이션 책임 | DB FK 제약 |

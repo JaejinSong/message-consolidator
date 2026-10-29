@@ -785,7 +785,7 @@ Handler tests initialize an in-memory SQLite via `testutil.SetupTestDB`, then in
 
 ### 7.1 테스트 헬퍼
 
-**파일:** [`handlers/handlers_test_util.go`](../../handlers/handlers_test_util.go)
+**파일:** [`handlers/handlers_test_util_test.go`](../../handlers/handlers_test_util_test.go)
 
 ```go
 func NewMockRequest(method, url, email string) *http.Request {
