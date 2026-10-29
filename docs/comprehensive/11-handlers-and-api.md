@@ -366,9 +366,9 @@ Owns user profile retrieval, Slack alias auto-sync, personal/tenant alias CRUD, 
 
 **의존:** `store.GetOrCreateUser`, `store.AddContactMapping`, `channels.NewSlackClient`
 
-**토큰 요금 계산:** Gemini 3 Flash 단가(prompt $0.50/1M, completion $3.00/1M)를 핸들러에서 직접 계산한다. 요금 변경 시 `handlers_users.go` 상단 상수 수정.
+**토큰 요금 계산:** 핸들러가 아니라 `services/token_cost.go`의 `aiRates`(모델별 단가 맵)가 모델·피크 구간 단위로 계산한다. 요금 변경 시 이 맵을 수정한다. `gemini-*` 단가 행은 과거 `token_usage` 행을 정확히 과금하기 위한 이력용이며, 알 수 없는 모델 id의 fallback 단가이기도 하다. 대시보드 라벨은 `DeepSeek`으로 고정이다.
 
-**Token cost calculation:** Gemini 3 Flash rates (prompt $0.50/1M, completion $3.00/1M) are computed directly in the handler. To update pricing, change the constants at the top of `handlers_users.go`.
+**Token cost calculation:** pricing is computed per (model, peak window) by the `aiRates` map in `services/token_cost.go`, not in the handler. To update pricing, edit that map. The `gemini-*` rate rows are kept only to price historical `token_usage` rows (and as the fallback for unknown model ids); the dashboard label is fixed to `DeepSeek`.
 
 ---
 
@@ -599,9 +599,9 @@ Owns settings CRUD backed by `config.Registry`, admin user grant/revoke, secret 
 | POST | `/api/admin/admins` | 어드민 부여 (GetOrCreateUser 선행) |
 | DELETE | `/api/admin/admins/{email}` | 어드민 회수 (super admin 보호) |
 
-**핫리로드 대상:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `GEMINI_ANALYSIS_MODEL`, `GEMINI_TRANSLATION_MODEL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. `GEMINI_API_KEY`, `DB_KEEP_ALIVE_INTERVAL` 등은 재시작 필요.
+**핫리로드 대상:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. `DEEPSEEK_API_KEY`, `DEEPSEEK_*_MODEL`(단계별 모델 키; 프롬프트 프론트매터가 우선), `DB_KEEP_ALIVE_INTERVAL` 등은 재시작 필요.
 
-**Hot-reloadable keys:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `GEMINI_ANALYSIS_MODEL`, `GEMINI_TRANSLATION_MODEL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. Keys like `GEMINI_API_KEY` and `DB_KEEP_ALIVE_INTERVAL` require restart.
+**Hot-reloadable keys:** `LOG_LEVEL`, `ARCHIVE_DAYS`, `AUTH_DISABLED`, `DEFAULT_USER_EMAIL`, `COMPANY_DOMAINS`, `GMAIL_SKIP_SENDERS`, `MESSAGE_BATCH_WINDOW`. Keys like `DEEPSEEK_API_KEY`, the per-stage `DEEPSEEK_*_MODEL` keys (prompt frontmatter wins) and `DB_KEEP_ALIVE_INTERVAL` require restart.
 
 **applyHotReload dispatch table:** `switch` 문에서 `map[string]hotReloader` dispatch table로 리팩터됐다. 각 설정 키의 사이드이펙트 함수(`reloadLogLevel`, `reloadArchiveDays` 등)가 독립적으로 분리되어 `applyHotReload` 자체의 복잡도(gocognit)가 경계 이하로 유지된다. 새 핫리로드 대상을 추가할 때 `hotReloaders` map에 항목만 추가하면 된다.
 

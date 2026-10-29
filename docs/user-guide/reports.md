@@ -57,6 +57,6 @@ Go to **Insights → Statistics**:
 
 ## Token Usage
 
-Check your Gemini AI usage at **Settings → Token Usage Monitor** or the AI Usage card in **Insights → Statistics**.
+Check your AI usage at **Settings → Token Usage Monitor** or the AI Usage card in **Insights → Statistics**.
 
 Shows today and this month's token consumption and estimated cost, broken down by analysis vs. translation.

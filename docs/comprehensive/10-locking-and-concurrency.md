@@ -59,7 +59,7 @@ Shared-state protection uses **either mutex or channel, never both for the same 
 Message Consolidator는 단일 인스턴스로 배포되므로 진정한 분산 락(Redis 등)은 필요 없습니다. 그러나 **같은 채팅방**에서 복수의 메시지 배치가 거의 동시에 도착할 때 문제가 발생합니다.
 
 - 두 스캔 고루틴이 동시에 같은 room의 메시지를 처리하면 `UpsertMessage` 시점에 경합이 생겨 중복 레코드 또는 partial 업데이트가 발생합니다.
-- `knownTS` 체크포인트가 인메모리이므로 두 고루틴이 체크포인트를 동시에 읽으면 둘 다 "새 메시지"로 판단해 동일 AI 추론을 이중 실행합니다. Gemini API 비용이 두 배로 청구됩니다.
+- `knownTS` 체크포인트가 인메모리이므로 두 고루틴이 체크포인트를 동시에 읽으면 둘 다 "새 메시지"로 판단해 동일 AI 추론을 이중 실행합니다. LLM API 비용이 두 배로 청구됩니다.
 
 `RoomLockService`는 방(room) 단위로 `*sync.Mutex`를 분리해 **같은 room의 처리는 한 번에 하나**만 진입하도록 보장합니다.
 
@@ -68,7 +68,7 @@ The service is deployed as a single instance, so a distributed lock (Redis, etc.
 
 Without a per-room lock:
 - Concurrent `UpsertMessage` calls for the same room create duplicate records or partial writes.
-- Both goroutines see the same `knownTS` state and trigger redundant Gemini API calls — doubling inference cost.
+- Both goroutines see the same `knownTS` state and trigger redundant LLM API calls — doubling inference cost.
 
 `RoomLockService` serialises processing within each room by maintaining a stable `*sync.Mutex` per room key.
 
@@ -151,7 +151,7 @@ func (s *RoomLockService) AcquireLock(key string) *sync.Mutex {
 
 ### 3.2 WHY — `go fn()` 직접 사용 금지
 
-Go에서 `go func() { ... }()` 내부의 패닉은 **프로세스를 즉시 종료**합니다. 스캐너 고루틴(Gemini 호출, DB 쓰기, 외부 SDK 응답 파싱)은 외부 응답 형식 변화, nil 역참조 등으로 인해 패닉이 발생할 수 있습니다. 하나의 방 처리 실패가 전체 서버를 다운시키면 안 됩니다.
+Go에서 `go func() { ... }()` 내부의 패닉은 **프로세스를 즉시 종료**합니다. 스캐너 고루틴(LLM 호출, DB 쓰기, 외부 SDK 응답 파싱)은 외부 응답 형식 변화, nil 역참조 등으로 인해 패닉이 발생할 수 있습니다. 하나의 방 처리 실패가 전체 서버를 다운시키면 안 됩니다.
 
 `safego.Recover`는 모든 백그라운드 고루틴에 패닉 격리 레이어를 추가합니다.
 
@@ -185,7 +185,7 @@ go func() {
 | `services/reports_service.go` | `async-report` | 비동기 보고서 생성 |
 | `channels/telegram.go` | `tg-run-client`, `tg-hydrate-dialogs`, `tg-store-entities` | Telegram MTProto 고루틴 |
 | `channels/whatsapp.go` | `wa-save-contact`, `wa-save-contact-mention` | WhatsApp 이벤트 핸들러 |
-| `ai/client.go` | `ai-log-inference` | Gemini 호출 로그 고루틴 |
+| `ai/client.go` | `ai-log-inference` | LLM 호출 로그 고루틴 |
 | `handlers/handlers_identity.go` | `proposal-job` | Identity 제안 비동기 잡 |
 
 ### 3.5 safego vs CLAUDE.md ctx 가드의 관계

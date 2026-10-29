@@ -75,9 +75,9 @@ loadUsersForScan
             │    ├─ GroupMessagesByTime       ← Time-Topic 배치
             │    └─ processChannelGroup
             │         ├─ adapter.BuildPayload
-            │         ├─ isIgnorableChannelNoise  ← Flash-Lite 게이트
+            │         ├─ isIgnorableChannelNoise  ← LiteFilter 게이트
             │         ├─ adapter.Enrich
-            │         ├─ gc.AnalyzeWithContext    ← Flash 추출
+            │         ├─ gc.AnalyzeWithContext    ← LLM 추출
             │         ├─ tasksSvc.ResolveProposals
             │         └─ processChannelItems → HandleTaskState
             └─ triggerAsyncTranslation
@@ -230,7 +230,7 @@ graph LR
     BUILD --> ENRICH["adapter.Enrich\n(enricher_*.go)"]
     ENRICH --> COMMON["enrichChannelMessage\n(enricher.go)"]
     COMMON --> OUT["types.EnrichedMessage\n{RawContent, SourceChannel,\n SenderID, SenderName,\n VirtualThreadID, Timestamp}"]
-    OUT --> AI["gc.AnalyzeWithContext\n(Gemini Flash)"]
+    OUT --> AI["gc.AnalyzeWithContext\n(DeepSeek)"]
 ```
 
 ### 공통 enricher (`enricher.go`)
@@ -274,7 +274,7 @@ runDailyDigest (prime-loop tick)
 
 - `digestSvc`는 `digestDispatcher` 인터페이스 — 테스트 시 mock 주입 가능
 - `digestLastSentDate`는 `atomic.Value` — goroutine-safe dedup
-- `WireDailyDigest(reportsSvc)`: `scanner.Init` 이후에 호출되어야 하는 이유 — `ReportsService`가 `GeminiClient`(Init에서 초기화)에 의존하기 때문
+- `WireDailyDigest(reportsSvc)`: `scanner.Init` 이후에 호출되어야 하는 이유 — `ReportsService`가 `AIClient`(Init에서 초기화)에 의존하기 때문
 
 ### 6.2 Weekly Report (`scanner_weekly_report.go`)
 
@@ -376,7 +376,7 @@ defer lock.Unlock()
 | 주제 | 문서 |
 |---|---|
 | 채널 클라이언트(SlackClient, WAManager, TGManager) 구현 | → [05-channels.md] |
-| AI 파이프라인(Flash-Lite noise gate, Flash 추출, CompletionService) | → [07-ai-filter-pipeline.md] |
+| AI 파이프라인(LiteFilter noise gate, LLM 추출, CompletionService) | → [07-ai-filter-pipeline.md] |
 | Daily Digest / Weekly Report service 비즈니스 로직 | → [08-services-business-logic.md] |
 | RoomLockService 상세, `inFlightMessages`, goroutine 패턴 | → [10-locking-and-concurrency.md] |
 | `scan_metadata` 테이블 스키마 전체 | → [04-data-layer.md] |

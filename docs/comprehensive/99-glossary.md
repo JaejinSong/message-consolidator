@@ -69,6 +69,10 @@
 **DB (Database)**
 — Turso (libsql) 기반 SQLite edge DB. `store/` 레이어를 통해서만 접근.
 
+**DeepSeek**
+— 이 프로젝트의 유일한 텍스트 생성 공급자. Ollama Cloud의 OpenAI 호환 엔드포인트(`DEEPSEEK_BASE_URL`)로 호출하며, 단계별 모델은 프롬프트 프론트매터(`deepseekModel`/`deepseekThinking`)가 우선한다.
+— [`ai/deepseek.go`](../../ai/deepseek.go)
+
 **DI (Dependency Injection / 의존성 주입)**
 — `main.go`에서 구체 구현체를 생성하고 인터페이스로 레이어에 주입하는 패턴. Store 레이어를 교체 가능하게 유지.
 
@@ -94,19 +98,12 @@
 — 프롬프트에 예시(few examples)를 포함하여 LLM이 원하는 출력 형식을 모방하도록 유도하는 기법. 태스크 추출 프롬프트에 적용.
 — [`ai/core/prompts/`](../../ai/core/prompts/)
 
-**Flash-Lite (Gemini Flash-Lite)**
-— Step 2에서 noise 이진 필터로 사용하는 초경량 Gemini 모델. 인사말·광고·OTP 등을 빠르게 제거해 비용을 최소화.
-
 **FTS (Full-Text Search / 전문 검색)**
 — SQLite의 FTS5 확장으로 메시지/태스크를 텍스트 검색하는 기능. Phase C 마이그레이션 후 적용 예정.
 
 ---
 
 ## G
-
-**Gemini**
-— Google의 멀티모달 LLM 시리즈. 이 프로젝트는 Flash-Lite(노이즈 필터), Flash(태스크 추출), Pro(리포트 생성) 세 계층으로 구분 사용.
-— [`ai/client.go`](../../ai/client.go)
 
 **Graceful Shutdown (그레이스풀 셧다운)**
 — SIGINT/SIGTERM 수신 시 외부 채널 연결 해제 → 메모리 플러시 → HTTP drain → DB 종료를 병렬·순서 보장하여 데이터 유실 없이 종료.
@@ -157,6 +154,10 @@
 — Turso가 fork한 SQLite 확장 라이브러리. HTTP·WebSocket 프로토콜로 원격 SQLite에 접근 가능.
 — [`go.mod` — `tursodatabase/libsql-client-go`](../../go.mod)
 
+**LiteFilter (노이즈 필터)**
+— Step 2에서 noise 이진 필터로 사용하는 경량 호출(thinking off). 인사말·광고·OTP 등을 빠르게 제거해 비용을 최소화.
+— [`ai/filter_service.go`](../../ai/filter_service.go)
+
 ---
 
 ## M
@@ -198,9 +199,6 @@
 — 8개 백그라운드 loop가 매 tick마다 소수 초(`59, 61, 67, 71, 73`)를 랜덤 추첨하여 외부 cron과의 harmonic resonance를 회피하는 분산 스케줄링 설계.
 — [`scanner/scanner_loop.go`](../../scanner/)
 
-**Pro (Gemini Pro)**
-— Step 4 리포트 생성에 사용하는 고성능 Gemini 모델. 복잡한 컨텍스트 분석과 전략적 비즈니스 인사이트 도출.
-
 ---
 
 ## R
@@ -213,7 +211,7 @@
 — 기한 초과·스테일 태스크를 지정 시간대에 Slack Block Kit DM으로 알려주는 기능.
 
 **Report (리포트)**
-— Daily Digest(일별)와 Weekly Report(주별) 두 종류. AI Pro 모델이 축적된 태스크를 분석해 생성.
+— Daily Digest(일별)와 Weekly Report(주별) 두 종류. AI 리포트 모델이 축적된 태스크를 분석해 생성.
 — [`services/reports_service.go`](../../services/)
 
 ---
@@ -225,7 +223,7 @@
 — [`scanner/`](../../scanner/)
 
 **SDK (Software Development Kit)**
-— 외부 서비스 연동 라이브러리 묶음. slack-go, whatsmeow, gotd/td, google Gemini SDK 등.
+— 외부 서비스 연동 라이브러리 묶음. slack-go, whatsmeow, gotd/td, go-openai(DeepSeek) 등.
 
 **Skip-when-running (실행 중 스킵)**
 — atomic CAS로 구현. 한 사이클이 다음 tick까지 늘어져도 queue 폭증 없이 단순 skip. 회복력 확보 목적.
@@ -305,7 +303,7 @@
 | FE | Frontend | Vite + TypeScript |
 | DSN | Data Source Name | DB 연결 문자열 (Turso URL + Token) |
 | HMR | Hot Module Replacement | Vite 개발 서버 기능 |
-| LLM | Large Language Model | Gemini 시리즈 |
+| LLM | Large Language Model | DeepSeek (Ollama Cloud) |
 | LCM | Least Common Multiple | Prime-Pool 조화 공명 회피 근거 |
 | ORM | Object-Relational Mapping | sqlc가 이 역할을 수행 |
 | QR | Quick Response (code) | WhatsApp 최초 페어링 시 사용 |

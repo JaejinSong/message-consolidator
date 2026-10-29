@@ -25,7 +25,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 | 04 | [data-layer.md](04-data-layer.md) | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
 | 05 | [channels.md](05-channels.md) | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
 | 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
-| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
+| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | Parser→Noise Filter→Task Extraction→Report·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
 | 08 | [services-business-logic.md](08-services-business-logic.md) | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
 | 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
 | 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
@@ -62,7 +62,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 **한국어:**
 
 - **DI/부트스트랩**: 03 (시퀀스 다이어그램), 10 (shutdown)
-- **AI 4단계 필터**: 07 (Parser → Flash-Lite → Flash → Pro)
+- **AI 4단계 필터**: 07 (Parser → Noise Filter → Task Extraction → Report)
 - **Prime-Pool 부하 분산**: 06 (5개 prime), 10 (분산 락 결합)
 - **Phantom Type ID 시스템**: 02, 09 (위반 사례)
 - **sqlc 워크플로**: 04 (상세), 01 (Commands)
@@ -152,7 +152,7 @@ done
 | 출처 | 항목 | 이전 기술 | 현재 사실 | 관련 챕터 |
 |---|---|---|---|---|
 | BACKEND_ARCHITECTURE.md | logger 책임 | "APM 래퍼 제공" | 별도 (logger=레벨 로그, APM은 internal/whataphttpx) | 03, 15 |
-| BACKEND_ARCHITECTURE.md | scanner AI 파이프 | "직접 전달" | scanner 자체 GeminiClient + 별도 handler용 AI | 03 |
+| BACKEND_ARCHITECTURE.md | scanner AI 파이프 | "직접 전달" | scanner 자체 AIClient + 별도 handler용 AI | 03 |
 | BACKEND_ARCHITECTURE.md | internal 패키지 | 미언급 | ids/safego/whataphttpx/testutil 4개 | 03 |
 | deploy.md | 프론트 컨테이너 | "Caddy 이미지" | alpine sidecar (Caddy 없음) | 18 |
 | deploy.md | DISABLE_STATIC_SERVING | 미언급 | docker-compose.yml에 존재 | 18 |
@@ -161,7 +161,7 @@ done
 | (코드) | store/migrations/*.sql | — | 3 파일 삭제됨, migrations.go만 사용 | 04 |
 | (코드) | safego API | 가설 `safego.Go(ctx,fn)` | 실제 `safego.Recover(name)` 단일 | 10 |
 | (코드) | handlers_misc.go | 11 handler로 알려짐 | 12번째 파일 존재 | 11 |
-| (2026-05-21) | gemini.go 단일 파일 | — | `gemini_report.go` + `gemini_translate.go` 분리 완료 | 07 |
+| (2026-05-21) | ai 클라이언트 단일 파일 | — | `report.go` + `translate.go` 분리 완료 (당시 파일명 `gemini_report.go`/`gemini_translate.go`, 이후 개명) | 07 |
 | (2026-05-21) | scanner_slack.go 단일 파일 | — | `scanner_slack_classify.go` + `scanner_slack_threads.go` 분리 완료 | 06 |
 | (2026-05-21) | contacts_store.go 단일 파일 | — | `contacts_channel.go` + `contacts_link.go` + `contacts_resolve.go` 분리 완료 | 04 |
 | (2026-05-21) | telegram.go / whatsapp.go 단일 파일 | — | telegram: `_ingest.go` + `_groups.go`, whatsapp: `_ingest.go`, 공유 `msgbuffer.go` 분리 완료 | 05 |

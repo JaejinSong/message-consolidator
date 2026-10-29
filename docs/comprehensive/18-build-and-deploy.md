@@ -357,9 +357,9 @@ Go 백엔드가 실제 클라이언트 IP와 프로토콜을 인식할 수 있�
 
 | 키 | 용도 |
 |---|---|
-| `GEMINI_API_KEY` | Gemini AI 분석/번역 |
+| `DEEPSEEK_API_KEY` | DeepSeek AI 분석/번역/리포트 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth2 로그인 |
-| `GEMINI_ANALYSIS_MODEL` / `GEMINI_TRANSLATION_MODEL` | 모델 버전 오버라이드 |
+| `DEEPSEEK_{FILTER,ANALYSIS,TRANSLATION,REPORT}_MODEL` | 단계별 모델 부팅 fallback (프롬프트 프론트매터 우선) |
 
 **DB / 인증:**
 

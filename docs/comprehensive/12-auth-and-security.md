@@ -406,7 +406,7 @@ expected := "v0=" + hex.EncodeToString(mac.Sum(nil))
 
 - HTTP 레벨 rate limiting 미구현 (Caddy나 Go 레이어 모두 없음)
 - 단일 사용자 서비스 특성상 현재는 위험도가 낮음
-- AI API 호출(Gemini)에는 배치 사이즈(10), 스캔 주기, 컨텍스트 취소를 통한 암묵적 쓰로틀링 존재
+- AI API 호출(DeepSeek)에는 배치 사이즈(10), 스캔 주기, 컨텍스트 취소를 통한 암묵적 쓰로틀링 존재
 
 ### Audit Log
 

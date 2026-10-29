@@ -53,7 +53,7 @@ sqlc queries (store/queries/filter_scores.sql), all user-scoped:
 ## Filter interface (Step 1)
 - New `ai.FilterInput{Email, Source, Room, SourceTS, MessageRef, Text string}`.
 - Consumer interfaces (`scanner` noiseFilter, `channels` noiseFilter) change to `IsNoise(ctx, ai.FilterInput) (bool, error)`.
-  Both `ClefFilter` and `GeminiLiteFilter` implement it (GeminiLiteFilter: thin adapter method that calls the existing
+  Both `ClefFilter` and `LiteFilter` implement it (LiteFilter: thin adapter method that calls the existing
   logic unchanged; do not alter its prompt/parse behaviour).
 - ClefFilter writes one `filter_scores` row per successful call (pass AND noise) with p, threshold, verdict, category,
   text capped at 8000 runes. Keep the existing `extraction_decisions` write on noise. A failed insert is logged, never

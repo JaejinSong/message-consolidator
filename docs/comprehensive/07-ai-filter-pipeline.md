@@ -20,22 +20,22 @@ graph TD
     C -- Yes --> Z1[Dropped — no token spend]
     C -- No --> D
 
-    subgraph Stage1["Stage 1 — Flash-Lite Filter (GeminiLiteFilter)"]
-        D[IsNoise<br/>lite_filter.prompt<br/>gemini-3.1-flash-lite-preview]
+    subgraph Stage1["Stage 1 — Noise Filter (LiteFilter)"]
+        D[IsNoise<br/>lite_filter.prompt<br/>deepseek-v4.1-flash · thinking off]
     end
 
     D -- noise=TRUE → isNoise=false<br/>actionable --> E
     D -- noise=FALSE → isNoise=true<br/>noise --> Z2[Dropped — IncrementFilteredCount]
 
-    subgraph Stage2["Stage 2 — Flash Task Extraction (GeminiClient.AnalyzeWithContext)"]
-        E[SourceAnalyzer<br/>chat_system / gmail_system / notion_system<br/>gemini-3-flash-preview]
+    subgraph Stage2["Stage 2 — Task Extraction (AIClient.AnalyzeWithContext)"]
+        E[SourceAnalyzer<br/>chat_system / gmail_system / notion_system<br/>deepseek-v4.1-flash]
         E --> F[parseAnalyzeResults<br/>sanitizeJSON · unmarshalAnalyze<br/>DeduplicateTasks]
     end
 
     F --> G
 
-    subgraph Stage3["Stage 3 — Pro Report Generation (GeminiClient.GenerateReportSummary)"]
-        G[report_summary.prompt<br/>gemini-3-flash-preview<br/>ReportMaxTokens=32768]
+    subgraph Stage3["Stage 3 — Report Generation (AIClient.GenerateReportSummary)"]
+        G[report_summary.prompt<br/>glm-5.3-flash · thinking on<br/>ReportMaxTokens=65536]
     end
 
     G --> H[Markdown Report<br/>+ Visualization JSON]
@@ -46,11 +46,11 @@ graph TD
 | 단계 | 모델 | 선택 이유 |
 |---|---|---|
 | Stage 0 | 로컬 코드 | 토큰 0 소비. 패턴 판별만으로 충분한 사전 필터 |
-| Stage 1 | `gemini-3.1-flash-lite-preview` | 가장 저렴한 추론. 이진 분류(소음/비소음)이므로 정밀도보다 재현율이 중요 |
-| Stage 2 | `gemini-3-flash-preview` | 구조화된 JSON 추출 + 다국어 작업명 영문 정규화. Flash는 Flash-Lite 대비 1.5–2× 정확도 우위 |
-| Stage 3 | `gemini-3-flash-preview`<br/>(thinking model) | 복수 메시지 통합, 전략적 통찰, 긴 Markdown 보고서 생성. `ReportMaxTokens=32768`로 thinking 토큰을 충분히 확보 |
+| Stage 1 | `deepseek-v4.1-flash` (thinking off) | 가장 저렴한 추론. 이진 분류(소음/비소음)이므로 정밀도보다 재현율이 중요 |
+| Stage 2 | `deepseek-v4.1-flash` (thinking on: chat/gmail, off: notion) | 구조화된 JSON 추출 + 다국어 작업명 영문 정규화 |
+| Stage 3 | `glm-5.3-flash`<br/>(thinking on) | 복수 메시지 통합, 전략적 통찰, 긴 Markdown 보고서 생성. `ReportMaxTokens=65536`로 thinking 토큰을 충분히 확보 |
 
-Stage 3는 `report_summary.prompt` 프론트매터가 `gemini-3-flash-preview`(thinking mode)로 라우팅합니다. `ReportMaxTokens=32768`을 할당하면 모델은 내부 reasoning에 ~24K 토큰을 소비하고 ~8K를 가시 출력에 사용합니다. 이 예산을 8192로 줄이면 보고서 섹션이 무음으로 잘립니다(`FinishReasonMaxTokens` 경고 발생).
+Stage 3는 `report_summary.prompt` 프론트매터(`deepseekModel: glm-5.3-flash`, `deepseekThinking: on`)가 thinking mode로 라우팅합니다. `max_tokens`는 reasoning과 가시 출력을 함께 예산하므로 `ReportMaxTokens=65536`을 할당합니다. 이 예산을 8192 수준으로 줄이면 보고서 섹션이 무음으로 잘립니다(`FinishReason == "length"` 경고 발생).
 
 ---
 
@@ -60,23 +60,22 @@ Stage 3는 `report_summary.prompt` 프론트매터가 `gemini-3-flash-preview`(t
 
 | 패키지 | 포함 파일 | 역할 |
 |---|---|---|
-| `ai/` | `gemini.go` (클라이언트 초기화·분석 메서드), `gemini_report.go` (리포트 생성·시각화), `gemini_translate.go` (번역), `embedding.go`, `filter_service.go`, `identity_resolver.go` | Gemini SDK(`google.golang.org/genai`) 결합 — 네트워크 I/O, 인증, 재시도 |
+| `ai/` | `client.go` (`AIClient` 생성·분석 메서드), `transport.go` (`LLMTransport` 인터페이스·`LLMRequest`/`LLMResponse`), `deepseek.go` (OpenAI 호환 DeepSeek transport), `report.go` (리포트 생성·시각화), `translate.go` (번역), `filter_service.go`, `identity_resolver.go` | LLM transport 결합 — 네트워크 I/O, 인증, 재시도 |
 | `ai/core/` | `analyzers.go`, `executor.go`, `parser.go`, `rag.go`, `few_shots.go`, `utils.go`, `prompts.go`, `prompts/*.prompt` | 순수 로직 — 프롬프트 렌더링, 파서, 스코어링. SDK import 없음 |
 
-분리 이유: `ai/core/` 는 `google.golang.org/genai` 를 import하지 않아 단독 단위 테스트가 가능하다. Gemini SDK 버전을 교체하거나 다른 AI 공급자로 전환할 때 `ai/core/` 는 수정 불필요.
+분리 이유: `ai/core/` 는 HTTP/LLM 클라이언트 라이브러리를 import하지 않아 단독 단위 테스트가 가능하다. 텍스트 생성 공급자는 DeepSeek(Ollama Cloud의 OpenAI 호환 엔드포인트) 하나뿐이며, 네트워크 호출은 `LLMTransport` 인터페이스(`ai/transport.go`) 뒤에 격리되어 있다.
 
-**Gemini SDK 마이그레이션**: `chore(deps): migrate Gemini SDK to google.golang.org/genai` 커밋으로 SDK가 기존 버전에서 `google.golang.org/genai` (v1)으로 전환됐다. 클라이언트 생성 패턴:
+**Transport 생성 패턴** (`github.com/sashabaranov/go-openai`):
 
 ```go
-// ai/client.go
-client, err := genai.NewClient(ctx, &genai.ClientConfig{
-    APIKey:     apiKey,
-    Backend:    genai.BackendGeminiAPI,
-    HTTPClient: whataphttpx.Client(),  // WhaTap APM 래핑
-})
+// ai/deepseek.go
+cfg := openai.DefaultConfig(apiKey)
+cfg.BaseURL = baseURL                   // 기본 https://ollama.com/v1
+cfg.HTTPClient = whataphttpx.Client()   // WhaTap APM 래핑
+client := openai.NewClientWithConfig(cfg)
 ```
 
-**English:** The `ai/` package holds SDK-coupled code (network I/O, auth, retry); `ai/core/` holds pure logic (prompt rendering, parsing, scoring) with no SDK imports. This boundary keeps `ai/core/` unit-testable in isolation and insulates it from SDK version churn.
+**English:** The `ai/` package holds transport-coupled code (network I/O, auth, retry); `ai/core/` holds pure logic (prompt rendering, parsing, scoring) with no SDK imports. This boundary keeps `ai/core/` unit-testable in isolation and insulates it from client-library churn.
 
 ---
 
@@ -104,30 +103,30 @@ Gmail과 Chat이 잘라내는 방향(앞 vs 끝)이 다른 이유: 이메일 스
 
 ### services/ai_parser.go 역할
 
-`services/ai_parser.go`는 AI 레이어가 아닌 서비스 레이어 유틸리티입니다. Stage 3 보고서 생성 후 Pro가 반환한 Markdown 안에 삽입된 시각화 JSON 블록을 꺼내는 역할을 합니다.
+`services/ai_parser.go`는 AI 레이어가 아닌 서비스 레이어 유틸리티입니다. Stage 3 보고서 생성 후 모델이 반환한 Markdown 안에 삽입된 시각화 JSON 블록을 꺼내는 역할을 합니다.
 
 - `ExtractJSONBlock(content)` — ` ```json``` ` 펜스 우선 시도, 실패 시 `{…}` 브레이스 폴백
 - `ExtractSection(content, sectionName)` — `## [Operations & Strategy Overview]` 같은 섹션 헤더로 특정 블록 추출
 
 ### Gmail 노이즈 게이트 (dc7c234 커밋)
 
-2026-04-28 커밋 `dc7c234`은 Gmail 파이프라인에 "noise gate"를 추가하여 마케팅/뉴스레터 메시지가 Stage 1 Flash-Lite에 도달하기 전에 차단되도록 했습니다. 패턴 매칭으로 판별한 마케팅 발신자는 Stage 0에서 즉시 드롭되며 토큰을 소비하지 않습니다. 같은 커밋에서 "thread routing" 개선도 포함되어 Gmail 스레드의 CC/BCC 수신자가 잘못된 assignee로 매핑되는 오탐지를 서버 로직에서 최종 차단합니다.
+2026-04-28 커밋 `dc7c234`은 Gmail 파이프라인에 "noise gate"를 추가하여 마케팅/뉴스레터 메시지가 Stage 1 필터에 도달하기 전에 차단되도록 했습니다. 패턴 매칭으로 판별한 마케팅 발신자는 Stage 0에서 즉시 드롭되며 토큰을 소비하지 않습니다. 같은 커밋에서 "thread routing" 개선도 포함되어 Gmail 스레드의 CC/BCC 수신자가 잘못된 assignee로 매핑되는 오탐지를 서버 로직에서 최종 차단합니다.
 
 ---
 
-## 4. Stage 1: Flash-Lite Filter
+## 4. Stage 1: Noise Filter
 
 **파일**: `ai/filter_service.go`  
-**프롬프트**: `ai/prompts/lite_filter.prompt` (model: `gemini-3.1-flash-lite-preview`)
+**프롬프트**: `ai/core/prompts/lite_filter.prompt` (deepseekModel: `deepseek-v4.1-flash`, deepseekThinking: `off`)
 
 ### 구조
 
 ```go
-type GeminiLiteFilter struct {
-    client *GeminiClient
+type LiteFilter struct {
+    client *AIClient
 }
 
-func (f *GeminiLiteFilter) IsNoise(ctx context.Context, email, source, text string) (bool, error)
+func (f *LiteFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error)
 ```
 
 `IsNoise`는 단 하나의 불리언 결정을 내립니다: 이 메시지가 소음인가? 반환 시맨틱이 주의가 필요합니다.
@@ -140,15 +139,15 @@ lite_filter.prompt 출력 의미:
 
 문자열 비교는 `strings.TrimSpace(strings.ToUpper(result)) == "FALSE"` 로 구현되어 있습니다. 역방향 논리(TRUE=비소음)는 프롬프트 설계에서 긍정 표현이 모델이 더 신뢰성 있게 출력하는 경향을 이용한 것입니다.
 
-### Flash-Lite 선택 이유
+### 경량 모델 선택 이유
 
-Flash-Lite는 이진 분류 과제에서 아래 속성이 이상적입니다.
+Stage 1은 가장 저렴한 flash 계열 모델을 thinking off로 호출합니다. 이진 분류 과제에서 아래 속성이 이상적입니다.
 
-- **비용**: Flash 대비 약 1/5 수준
+- **비용**: reasoning 토큰을 쓰지 않아 호출당 비용 최소
 - **지연**: 단답 응답(TRUE/FALSE)에서 100ms 미만 달성 가능
 - **충분한 정확도**: 인사말·감사·OTP 같은 패턴은 복잡한 추론이 필요 없음
 
-Flash-Lite가 놓친 소음(False Negative)은 Stage 2에서 `state: none` 또는 빈 배열로 반환되므로 최종 비용 손실은 Flash-Lite 호출 1회로 한정됩니다.
+필터가 놓친 소음(False Negative)은 Stage 2에서 `state: none` 또는 빈 배열로 반환되므로 최종 비용 손실은 Stage 2 호출 1회로 한정됩니다.
 
 ### 필터링 대상 (lite_filter.prompt 정의)
 
@@ -161,28 +160,28 @@ Flash-Lite가 놓친 소음(False Negative)은 Stage 2에서 `state: none` 또�
 
 ```go
 store.IncrementFilteredCount(email)              // 필터 카운터 증가
-logTokenUsage(ctx, email, "LiteFilter", source, model, 0, resp)  // gemini.go
+logTokenUsage(ctx, email, "LiteFilter", modelName, source, 0, resp.Usage)  // ai/client.go
 ```
 
 `source` 파라미터(`slack`, `whatsapp`, `gmail` 등)를 전달하여 채널별 비용 분석이 가능합니다 (→ [15-observability.md]).
 
 ---
 
-## 5. Stage 2: Flash Task Extraction
+## 5. Stage 2: Task Extraction
 
 **파일**: `ai/client.go` (Analyze, AnalyzeWithContext), `ai/core/analyzers.go` (SourceAnalyzer 구현체), `ai/core/few_shots.go` (FewShot 풀), `ai/core/utils.go` (unmarshalAnalyze)
 
 ### 진입 흐름
 
 ```
-GeminiClient.Analyze(ctx, email, msg, language, source, room)
+AIClient.Analyze(ctx, email, msg, language, source, room)
   → GetActiveContextTasks(ctx, db, email, source, room)       // 기존 작업 로드
   → AnalyzeWithContext(ctx, email, msg, language, source, room, tasks)
       → prepareAnalysisData(...)                              // ExtractionContext 구성
       → getAnalyzer(source)                                   // SourceAnalyzer 선택
       → analyzer.PreProcess(payload)                         // Stage 0
-      → initModel(modelName, 0.0, 8192, "application/json")  // 온도 0으로 deterministic
-      → generateWithRetry(ctx, model, prompt, 45s, 2)
+      → resolveModel / resolveThinking                       // 프롬프트 프론트매터 우선
+      → transport.Generate(ctx, req, 45s, 2)                 // LLMRequest{JSONMode: true}
       → parseAnalyzeResults(resp, currentUserID, userEmail)
 ```
 
@@ -315,16 +314,16 @@ Fire-and-forget goroutine으로 `logger.LogAIInferenceToFile`과 `store.LogAIInf
 
 ---
 
-## 7. Stage 3: Pro Report Generation
+## 7. Stage 3: Report Generation
 
-**파일**: `ai/gemini_report.go` (GenerateReportSummary, GenerateVisualizationData, EvaluateTaskTransition)  
-**프롬프트**: `ai/prompts/report_summary.prompt` (model: `gemini-3-flash-preview`, v2.7.0)  
+**파일**: `ai/report.go` (GenerateReportSummary, GenerateVisualizationData, EvaluateTaskTransition)  
+**프롬프트**: `ai/core/prompts/report_summary.prompt` (deepseekModel: `glm-5.3-flash`, v3.4.0)  
 **호출자**: `services/` 보고서 서비스 (→ [08-services-business-logic.md])
 
 ### GenerateReportSummary
 
 ```go
-func (g *GeminiClient) GenerateReportSummary(ctx context.Context, email string, tasks string, reportID store.ReportID) (string, error)
+func (g *AIClient) GenerateReportSummary(ctx context.Context, email string, tasks string, window string, reportID store.ReportID) (string, error)
 ```
 
 입력 `tasks`는 해당 기간의 전체 활성+완료 태스크 JSON 직렬화입니다. 보고서 서비스가 기간(daily/weekly)에 따라 집계한 후 이 함수에 전달합니다.
@@ -340,26 +339,25 @@ data := ExtractionContext{
 
 `StaleThreshold`는 보고서 내 "Stalled Tasks" 섹션의 판정 기준으로, 설정값이 바뀌면 보고서 로직도 자동으로 따라갑니다.
 
-### ReportMaxTokens = 32768
+### ReportMaxTokens = 65536
 
 ```go
-const ReportMaxTokens = 32768
-// Why: Gemini 3 Flash는 thinking model — max_output_tokens가 thinking + 가시 출력
-// 모두 예산함. 8192로 설정 시 thinking이 ~7800 소비 → 보고서가 ~300 토큰으로 잘림.
-// 32768 = thinking ~24K + 가시 출력 ~8K 헤드룸.
+const ReportMaxTokens = 65536
+// Why: thinking 모델은 max_tokens가 thinking + 가시 출력 모두 예산함.
+// 8192로 설정 시 thinking이 대부분을 소비 → 보고서가 ~300 토큰으로 잘림.
 ```
 
 `FinishReasonMaxTokens` 감지 시 경고 로그:
 
 ```go
-if fr := resp.Candidates[0].FinishReason; fr == genai.FinishReasonMaxTokens {
-    logger.Warnf("[GEMINI] ReportSummary output truncated: FinishReason=MAX_TOKENS, ...")
+if resp.FinishReason == "length" {
+    logger.Warnf("[AI] ReportSummary hit output limit: think=%d completion=%d ...")
 }
 ```
 
 ### GenerateVisualizationData
 
-`ResponseSchema` (`genai.Schema`)를 주입하여 JSON 형식을 강제합니다. hallucination 방어 목적.
+DeepSeek은 `response_format: json_object`만 지원하므로(json_schema 미지원) 스키마를 프롬프트에 명시하고 JSON 모드 + `SanitizeJSON`으로 형식을 강제합니다. hallucination 방어 목적.
 
 ```
 Schema:
@@ -372,7 +370,7 @@ Schema:
 ### EvaluateTaskTransition
 
 ```go
-func (g *GeminiClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, replyText string) (TaskTransition, error)
+func (g *AIClient) EvaluateTaskTransition(ctx context.Context, email, parentTask, parentAssignee, replyText string, subtasks []store.Subtask) (TaskTransition, error)
 ```
 
 ```go
@@ -382,7 +380,7 @@ type TaskTransition struct {
 }
 ```
 
-부모 메시지의 작업과 자식 답변의 관계를 분석하여 작업 상태를 결정론적으로 전이시킵니다. `completion_check.prompt` (model: `gemini-3.1-flash-lite-preview`)를 사용하므로 Flash-Lite로 내려가는 드문 케이스입니다 — completion 판별은 이진에 가까운 판단이기 때문입니다.
+부모 메시지의 작업과 자식 답변의 관계를 분석하여 작업 상태를 결정론적으로 전이시킵니다. `completion_check.prompt` (deepseekModel: `deepseek-v4.1-flash`, deepseekThinking: `on`)를 사용합니다.
 
 ### Daily Digest vs Weekly Report 프롬프트 차이
 
@@ -460,7 +458,7 @@ func (ctx *ExtractionContext) LimitFewShots(max int) {
 
 `ExtractionContext.LimitFewShots` (ai/core/executor.go)는 호출자가 few-shot 주입 개수를 O(1) 슬라이싱으로 상한 설정합니다. 현재 `ChatAnalyzer`는 `SelectFewShots(..., 2)` 호출 시 이미 2로 제한되므로 이중 방어입니다.
 
-token_usage 테이블에는 step=`Analyze`, model=`gemini-3-flash-preview`로 기록됩니다. few-shot 포함 여부에 따른 prompt 토큰 증가는 이 레코드에 자연스럽게 반영됩니다 (→ [15-observability.md]).
+token_usage 테이블에는 step=`Analyze`, model=프롬프트 프론트매터의 `deepseekModel`(기본 `deepseek-v4.1-flash`)로 기록됩니다. few-shot 포함 여부에 따른 prompt 토큰 증가는 이 레코드에 자연스럽게 반영됩니다 (→ [15-observability.md]).
 
 ---
 
@@ -499,25 +497,25 @@ const (
 
 ### ai/core/prompts/ 파일 인벤토리 (17개 파일)
 
-| 파일명 | 모델 라우팅 | 버전 | 용도 |
+| 파일명 | 모델 라우팅 (`deepseekModel`) | 버전 | 용도 |
 |---|---|---|---|
-| `batch_translator.prompt` | `gemini-3.1-flash-lite-preview` | — | 태스크 배치 번역 (JSON 응답) |
-| `chat_system.prompt` | `gemini-3-flash-preview` | 1.9.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
-| `chat_user.prompt` | `gemini-3-flash-preview` | 1.0.0 | Chat 채널 태스크 추출 유저 프롬프트 |
-| `completion_check.prompt` | `gemini-3.1-flash-lite-preview` | 2.0.0 | 답변→부모 태스크 상태 전이 판별 |
-| `gmail_system.prompt` | `gemini-3-flash-preview` | 1.6.0 | Gmail 스레드 태스크 추출 시스템 프롬프트 |
-| `gmail_user.prompt` | `gemini-3-flash-preview` | 1.0.0 | Gmail 스레드 태스크 추출 유저 프롬프트 |
-| `identity_group_merge.prompt` | `gemini-3-flash-preview` | 1.1.0 | 연락처 동일인 그룹 제안 |
-| `lite_filter.prompt` | `gemini-3.1-flash-lite-preview` | 1.0.0 | Stage 1 이진 소음 필터 |
-| `new_extraction.prompt` | `gemini-3-flash-preview` | 2.1.0 | (미사용 — 실험적) |
-| `notion_system.prompt` | `gemini-3-flash-preview` | 1.2.0 | Notion 페이지 태스크 추출 시스템 프롬프트 |
-| `notion_user.prompt` | `gemini-3-flash-preview` | 1.0.0 | Notion 페이지 태스크 추출 유저 프롬프트 |
-| `release_notes_combined.prompt` | `gemini-3-flash-preview` | 2.0.0 | 릴리스 노트 생성 |
-| `report_summary.prompt` | `gemini-3-flash-preview` | 2.7.0 | Stage 3 보고서 생성 |
-| `report_translator.prompt` | `gemini-3.1-flash-lite-preview` | 1.0.0 | 완성된 보고서 Markdown 번역 |
-| `task_merge_summary.prompt` | `gemini-3-flash-preview` | — | 병합된 태스크 영문 제목 30자 요약 |
-| `task_translator.prompt` | `gemini-3.1-flash-lite-preview` | 1.0.0 | 단일 태스크 메시지 번역 |
-| `translation_system.prompt` | `gemini-3.1-flash-lite-preview` | 1.0.0 | 배치 번역 시스템 프롬프트 |
+| `batch_translator.prompt` | `deepseek-v4.1-flash` | 1.2.0 | 태스크 배치 번역 (JSON 응답) |
+| `chat_system.prompt` | `deepseek-v4.1-flash` | 1.21.0 | Chat 채널 태스크 추출 시스템 프롬프트 |
+| `chat_user.prompt` | (코드 기본값) | 1.2.0 | Chat 채널 태스크 추출 유저 프롬프트 |
+| `completion_check.prompt` | `deepseek-v4.1-flash` | 2.10.0 | 답변→부모 태스크 상태 전이 판별 |
+| `gmail_system.prompt` | `deepseek-v4.1-flash` | 1.13.0 | Gmail 스레드 태스크 추출 시스템 프롬프트 |
+| `gmail_user.prompt` | (코드 기본값) | 1.3.0 | Gmail 스레드 태스크 추출 유저 프롬프트 |
+| `identity_group_merge.prompt` | `deepseek-v4.1-flash` | 1.3.0 | 연락처 동일인 그룹 제안 |
+| `lite_filter.prompt` | `deepseek-v4.1-flash` | 1.3.0 | Stage 1 이진 소음 필터 |
+| `new_extraction.prompt` | (코드 기본값) | 2.2.0 | (미사용 — 실험적) |
+| `notion_system.prompt` | `deepseek-v4.1-flash` | 1.7.0 | Notion 페이지 태스크 추출 시스템 프롬프트 |
+| `notion_user.prompt` | (코드 기본값) | 1.3.0 | Notion 페이지 태스크 추출 유저 프롬프트 |
+| `release_notes_combined.prompt` | (코드 기본값) | 2.2.0 | 릴리스 노트 생성 |
+| `report_summary.prompt` | `glm-5.3-flash` | 3.4.0 | Stage 3 보고서 생성 |
+| `report_translator.prompt` | `deepseek-v4.1-flash` | 1.1.0 | 완성된 보고서 Markdown 번역 |
+| `task_merge_summary.prompt` | `deepseek-v4.1-flash` | 1.2.0 | 병합된 태스크 영문 제목 30자 요약 |
+| `task_translator.prompt` | `deepseek-v4.1-flash` | 1.1.0 | 단일 태스크 메시지 번역 |
+| `translation_system.prompt` | `deepseek-v4.1-flash` | 1.2.0 | 배치 번역 시스템 프롬프트 |
 
 ### 프롬프트 파일 포맷 (Frontmatter)
 
@@ -527,14 +525,13 @@ const (
 ---
 name: <prompt_name>
 version: <semver>
-model: <gemini-model-id>        ← 빌드 시 고정; 빈 칸이면 호출자 기본값 사용
-temperature: <float>            ← optional; 현재 ParsedPrompt.Render에서 미사용
-response_mime_type: <mime>      ← optional
+deepseekModel: <model-id>       ← optional; 비어 있으면 코드 기본값(ProviderConfig의 DEEPSEEK_*_MODEL) 사용
+deepseekThinking: <off|on|high|max|default>  ← optional; 비어 있으면 단계별 코드 기본값 사용
 ---
 [시스템 프롬프트 본문]
 ```
 
-`parser.go`의 `ParsePrompt`가 `---` 구분자로 헤더를 파싱하여 `ParsedPrompt.Meta.Model`에 저장합니다. `gemini.go`의 `getEffectiveModel`은 이 값이 비어있으면 호출자 기본값(`g.analysisModel` 또는 `g.translationModel`)을 사용합니다.
+`parser.go`의 `ParsePrompt`가 `---` 구분자로 헤더를 파싱하여 `Meta.Name`, `Meta.Version`, `Meta.DeepSeekModel`, `Meta.DeepSeekThinking`에 저장합니다(그 외 키는 무시). `client.go`의 `resolveModel`/`resolveThinking`은 값이 비어있으면 단계별 `modelSpec`(env 오버라이드 + 하드코딩 기본값)을 사용합니다.
 
 ### 프롬프트 수정 워크플로
 
@@ -556,40 +553,39 @@ response_mime_type: <mime>      ← optional
 
 ```go
 type IdentityResolver struct {
-    client *GeminiClient
+    client *AIClient
 }
 
 func (r *IdentityResolver) ProposeGroups(ctx context.Context, contacts []store.ContactRecord) ([]MergeGroup, error)
 ```
 
 - 20개 초과 시 `identityChunkSize=20`으로 분할 처리
-- `identity_group_merge.prompt` (model: `gemini-3-flash-preview`, temp: 0.1)
+- `identity_group_merge.prompt` (deepseekModel: `deepseek-v4.1-flash`, deepseekThinking: `on`, temp: 0.1)
 - 응답: `[]MergeGroup{ContactIDs, Confidence, Reason}`
 - 마크다운 코드 펜스 수동 제거 후 JSON 언마샬 (sanitizeJSON 미사용 — 프롬프트 응답이 단순 배열이므로)
-- trace step: `Gemini-IdentityResolve`, elapsed + 연락처 수를 value로 기록
-- 비용 귀속: `store.AddTokenUsage` 미호출 — IdentityResolver가 `logTokenUsage`를 직접 호출하지 않음 (개선 여지)
+- trace step: `DeepSeek-IdentityResolve`, elapsed + 연락처 수를 value로 기록
+- 비용 귀속: `logTokenUsage(ctx, email, "IdentityResolve", ...)`로 `token_usage`에 기록
 
 ---
 
 ## 11. 에러 처리 + 재시도 + 비용 관측
 
-### 재시도 전략 (generateWithRetry)
+### 재시도 전략 (deepseekTransport.createWithRetry)
 
 ```go
-func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt genai.Part,
-    timeout time.Duration, maxRetries int) (*genai.GenerateContentResponse, error)
+func (t *deepseekTransport) Generate(ctx context.Context, req LLMRequest,
+    timeout time.Duration, maxRetries int) (LLMResponse, error)
 ```
 
 - Attempt 당 독립적인 `context.WithTimeout(ctx, timeout)` 생성
 - Exponential backoff + jitter: `backoff = 2^attempt seconds`, jitter = `backoff × [0.5, 1.0)` (thundering herd 방지)
 - `ctx.Err() != nil` 즉시 탈출 (호출자 cancel/deadline 우선)
-- API key를 로그에서 마스킹: `maskAPIKey(err)` — `key=<value>` 패턴을 `key=***`로 치환
 
 | 호출 | timeout | maxRetries |
 |---|---|---|
 | LiteFilter (IsNoise) | 30s | 2 |
 | Analyze (AnalyzeWithContext) | 45s | 2 |
-| GenerateReportSummary | 180s | 2 |
+| GenerateReportSummary | 271s | 2 |
 | EvaluateTaskTransition | 30s | 2 |
 | TranslateTasksBatch | 45s | 3 |
 | GenerateMergedTaskTitle | 10s | 1 |
@@ -613,16 +609,16 @@ func generateWithRetry(ctx context.Context, model *genai.GenerativeModel, prompt
 
 ### Rate Limit / Quota 에러
 
-현재 `generateWithRetry`가 모든 에러를 동일하게 재시도합니다. 429 (Rate Limit), 503 (Service Unavailable) 등의 HTTP 에러는 backoff가 자연스럽게 처리하지만 코드 레벨에서 HTTP status를 구분하지는 않습니다.
+현재 `createWithRetry`가 모든 에러를 동일하게 재시도합니다. 429 (Rate Limit), 503 (Service Unavailable) 등의 HTTP 에러는 backoff가 자연스럽게 처리하지만 코드 레벨에서 HTTP status를 구분하지는 않습니다.
 
 ### token_usage 기록
 
 ```go
 func logTokenUsage(ctx context.Context, email, step, model, source string, reportID store.ReportID,
-    resp *genai.GenerateContentResponse)
+    usage LLMUsage)
 ```
 
-`resp.UsageMetadata`가 nil이면 no-op으로 처리합니다 (timeout/cancel 시 Gemini가 메타데이터를 미반환).
+timeout/cancel 시 프로바이더가 usage를 반환하지 않으므로 해당 경우는 호출부에서 `"failed"` 소스로 0 토큰 행을 기록합니다(`store.AddTokenUsage`).
 
 실패 시에도 비용 귀속을 시도합니다.
 
@@ -634,16 +630,16 @@ store.AddTokenUsage(email, step, modelName, "failed", reportID, 0, 0)
 `trace.Step`으로 각 AI 호출의 경과 시간이 WhaTap APM 트랜잭션에 step으로 기록됩니다.
 
 ```
-Gemini-Analyze          → AnalyzeWithContext
-Gemini-LiteFilter       → IsNoise
-Gemini-ReportSummary    → GenerateReportSummary
-Gemini-Visualization    → GenerateVisualizationData
-Gemini-EvaluateTransition → EvaluateTaskTransition
-Gemini-Translate        → Translate
-Gemini-TranslateReport  → TranslateReport
-Gemini-TranslateTask    → TranslateTaskMessage
-Gemini-MergeSummary     → GenerateMergedTaskTitle
-Gemini-IdentityResolve  → proposeChunk
+DeepSeek-Analyze          → AnalyzeWithContext
+DeepSeek-LiteFilter       → IsNoise
+DeepSeek-ReportSummary    → GenerateReportSummary
+DeepSeek-Visualization    → GenerateVisualizationData
+DeepSeek-EvaluateTransition → EvaluateTaskTransition
+DeepSeek-Translate        → Translate
+DeepSeek-TranslateReport  → TranslateReport
+DeepSeek-TranslateTask    → TranslateTaskMessage
+DeepSeek-MergeSummary     → GenerateMergedTaskTitle
+DeepSeek-IdentityResolve  → proposeChunk
 TokenUsage-<step>       → 프롬프트/완성 토큰 수 포함
 ```
 

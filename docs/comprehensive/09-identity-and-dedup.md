@@ -25,7 +25,7 @@ Without unification, the task pipeline treats each cross-channel identifier as a
 The system solves this through a layered approach:
 1. **Deterministic normalization** — canonical string transformations applied on ingestion.
 2. **DSU-backed in-memory graph** — O(α(N)) merge/find for real-time resolution.
-3. **AI-proposed merge candidates** — Gemini analyzes ambiguous display names and proposes groupings a human can confirm.
+3. **AI-proposed merge candidates** — the LLM analyzes ambiguous display names and proposes groupings a human can confirm.
 4. **Token-sorted heuristics** — catches reversed-order names without AI cost.
 
 ---
@@ -68,7 +68,7 @@ Deterministic string matching cannot handle:
 - **Partial name matches**: "Smith, J." vs "John Smith" — one token is shared, but so might it be for two distinct Smiths.
 - **Cross-channel display name drift**: Slack display names are user-set free text; Gmail names come from contacts; WhatsApp uses phone address books.
 
-The Jaro-Winkler similarity (`store/similarity.go`) handles fuzzy string distance locally (threshold 0.85), but it is insufficient alone — it produces false positives for short common names. Gemini provides semantic disambiguation with a stated confidence score.
+The Jaro-Winkler similarity (`store/similarity.go`) handles fuzzy string distance locally (threshold 0.85), but it is insufficient alone — it produces false positives for short common names. The LLM provides semantic disambiguation with a stated confidence score.
 
 ### 3.3 Chunking Strategy
 
@@ -80,7 +80,7 @@ if len(contacts) > 20 → proposeInChunks → sequential 20-contact windows
 
 This exists because context-sensitive grouping degrades when the prompt carries too many candidates — the model may miss cross-group relationships. A tenant with 208 contacts is pre-filtered to ~49 candidates by `GetCandidateContacts` (name-substring SQL join), reducing AI chunk calls from 11 to 3.
 
-The Gemini call uses `temperature=0.1` (near-deterministic) with a 300-second timeout and 2 retries. The response is expected as a raw JSON array; markdown code fences are stripped before `json.Unmarshal`.
+The LLM call uses `temperature=0.1` (near-deterministic) with a 300-second timeout and 2 retries. The response is expected as a raw JSON array; markdown code fences are stripped before `json.Unmarshal`.
 
 ### 3.4 Proposal Pipeline (Handler Layer)
 
@@ -92,7 +92,7 @@ POST /api/identity/proposals/generate
     ├─ 1. AutoMergeByCanonicalID    — deterministic: same email = auto-link
     ├─ 2. GetCandidateContacts      — SQL pre-filter (name-substr join)
     ├─ 3. LoadHandledPairs          — skip already-decided pairs
-    ├─ 4. insertAIProposalGroups    — Gemini ProposeGroups → InsertProposalGroup
+    ├─ 4. insertAIProposalGroups    — LLM ProposeGroups → InsertProposalGroup
     └─ 5. insertTokenSortedProposals — reversed-name heuristic (no AI cost)
                                         → 202 Accepted, poll /job-status
 ```
@@ -395,7 +395,7 @@ As noted in §7.4: after `UnlinkContact`, `GlobalContactDSU` is not rebuilt. The
 | Topic | Chapter |
 |---|---|
 | Full schema for `contacts`, `contact_resolution`, `user_aliases` | → [04-data-layer.md] |
-| AI filter pipeline (Gemini client, `generateWithRetry`, WhaTap APM instrumentation) | → [07-ai-filter-pipeline.md] |
+| AI filter pipeline (AI client, `LLMTransport` retry, WhaTap APM instrumentation) | → [07-ai-filter-pipeline.md] |
 | `HandleTaskState` and `routeTaskState` — where resolved assignee names are consumed | → [08-services-business-logic.md] |
 | `EnrichedMessage` type definition (SenderID — `ids.UserID` phantom type) | → [02-domain-model.md] |
 | Settings UI for managing contacts and proposals | → [14-frontend-settings.md] |

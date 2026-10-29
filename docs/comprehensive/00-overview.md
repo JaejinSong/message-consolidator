@@ -31,9 +31,9 @@ graph TD
 
     subgraph Pipeline["AI Filter Pipeline"]
         P1[Step 1: Raw Parser<br/>noise gate · context window]
-        P2[Step 2: Flash-Lite<br/>noise filter]
-        P3[Step 3: Flash<br/>task extraction · state eval]
-        P4[Step 4: Pro<br/>report generation]
+        P2[Step 2: Noise Filter<br/>LiteFilter]
+        P3[Step 3: Task Extraction<br/>· state eval]
+        P4[Step 4: Report<br/>generation]
     end
 
     subgraph Backend["백엔드 / Backend (Go)"]
@@ -73,7 +73,7 @@ graph TD
 | **Router** | gorilla/mux | REST, WhatapMiddleware 적용 |
 | **DB** | Turso (libsql) + SQLite | edge-distributed SQLite |
 | **ORM/Query** | sqlc v2 | `db/*.sql.go` 자동 생성 — 직접 수정 금지 |
-| **AI** | Google Gemini | Flash-Lite(소음 필터) / Flash(태스크 추출) / Pro(리포트) |
+| **AI** | DeepSeek (Ollama Cloud, OpenAI 호환) | `deepseek-v4.1-flash`(소음 필터·태스크 추출·번역) / `glm-5.3-flash`(리포트) |
 | **Messaging** | slack-go, whatsmeow, gotd/td | Slack API / WA Protobuf / Telegram MTProto |
 | **Auth** | Google OAuth2 | Gmail 연동·세션 쿠키 |
 | **APM** | WhaTap Go SDK | Manual instrumentation only — `whatap-go-inst` 금지 |
@@ -87,10 +87,10 @@ graph TD
 ## AI 필터 파이프라인 요약 / Filter Pipeline Summary
 
 **한국어:**
-"Parser → Flash-Lite → Flash → Pro"로 이어지는 4단계 필터. 비용(Cost)·지연(Latency)·정확도(Accuracy)를 동시에 최적화하며, Step 1의 noise gate가 마케팅·인사말 등을 선제 차단해 LLM 비용을 최소화합니다.
+"Parser → Noise Filter → Task Extraction → Report"로 이어지는 4단계 필터. 비용(Cost)·지연(Latency)·정확도(Accuracy)를 동시에 최적화하며, Step 1의 noise gate가 마케팅·인사말 등을 선제 차단해 LLM 비용을 최소화합니다.
 
 **English:**
-A 4-stage cascade — Raw Parser noise gate → Flash-Lite binary filter → Flash task extraction → Pro report synthesis — balances cost, latency, and accuracy. The early parser stage prevents marketing/greeting noise from reaching any LLM call.
+A 4-stage cascade — Raw Parser noise gate → LiteFilter binary filter → task extraction → report synthesis — balances cost, latency, and accuracy. The early parser stage prevents marketing/greeting noise from reaching any LLM call.
 
 → 상세: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 

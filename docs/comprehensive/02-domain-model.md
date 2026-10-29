@@ -11,27 +11,27 @@
 Message Consolidator의 핵심 목적은 다채널(Slack, Gmail, WhatsApp, Telegram)에서 유입되는 원시 메시지를 **실행 가능한 작업(Task)**으로 정제하고, 그 결과를 구조화된 보고서로 집계하는 것입니다. 이 라이프사이클은 4단계로 구성됩니다.
 
 1. **Ingest** — 각 채널 스캐너가 `RawMessage`를 수집하고 `source_ts` 기반 중복 판별을 수행합니다.
-2. **Enrich & Filter** — Flash-Lite(노이즈 제거) → Flash(태스크 추출/상태 평가) 다단계 LLM 파이프라인을 거칩니다. 결과물인 `TodoItem`은 AI가 부여한 상태(`new`/`update`/`resolve`/`cancel`)를 포함합니다.
+2. **Enrich & Filter** — Noise Filter(노이즈 제거) → Task Extraction(태스크 추출/상태 평가) 다단계 LLM 파이프라인을 거칩니다. 결과물인 `TodoItem`은 AI가 부여한 상태(`new`/`update`/`resolve`/`cancel`)를 포함합니다.
 3. **Consolidate** — Jaro-Winkler 유사도(임계값 0.85) + `affinity_group_id` 기반 의미론적 중복 제거 후 `ConsolidatedMessage`가 DB에 upsert됩니다. 연락처 식별은 `contact_resolution` 조회 후 `contacts` 테이블의 master/slave 병합 체인으로 canonical ID를 결정합니다.
-4. **Report** — Pro 모델이 축적된 ConsolidatedMessage를 분석하여 `reports`와 `report_translations`를 생성합니다.
+4. **Report** — 리포트 모델이 축적된 ConsolidatedMessage를 분석하여 `reports`와 `report_translations`를 생성합니다.
 
 **English:**
 
 The system's purpose is to refine raw multi-channel messages (Slack, Gmail, WhatsApp, Telegram) into actionable Tasks, then aggregate them into structured Reports. The lifecycle has four phases:
 
 1. **Ingest** — Channel scanners collect `RawMessage`s and perform `source_ts`-based deduplication.
-2. **Enrich & Filter** — Flash-Lite (noise gate) → Flash (task extraction/state evaluation) multi-stage LLM pipeline. The resulting `TodoItem` carries an AI-assigned state (`new`/`update`/`resolve`/`cancel`).
+2. **Enrich & Filter** — Noise Filter (noise gate) → Task Extraction (task extraction/state evaluation) multi-stage LLM pipeline. The resulting `TodoItem` carries an AI-assigned state (`new`/`update`/`resolve`/`cancel`).
 3. **Consolidate** — Jaro-Winkler similarity (threshold 0.85) + `affinity_group_id` semantic deduplication, then `ConsolidatedMessage` is upserted to the DB. Contact identity is resolved via `contact_resolution` lookup then the `contacts` master/slave merge chain to determine canonical ID.
-4. **Report** — The Pro model analyzes accumulated ConsolidatedMessages to produce `reports` and `report_translations`.
+4. **Report** — The report model analyzes accumulated ConsolidatedMessages to produce `reports` and `report_translations`.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> raw : Channel scanner ingests
-    raw --> noise_dropped : Flash-Lite classifies noise
-    raw --> enriched : Flash-Lite passes
+    raw --> noise_dropped : Noise filter classifies noise
+    raw --> enriched : Noise filter passes
     noise_dropped --> [*]
-    enriched --> filtered : Flash extracts task
+    enriched --> filtered : Extraction stage extracts task
     filtered --> consolidated : Semantic dedup + upsert
     consolidated --> done : User/AI marks done
     consolidated --> canceled : User/AI cancels (done=0, is_deleted=1)
@@ -194,13 +194,13 @@ These two tables address the cross-channel identity fragmentation problem. `iden
 
 **한국어:**
 
-`reports`는 Pro 모델이 생성하는 일간/주간 분석 보고서의 메타데이터 행입니다. `visualization`은 인적 네트워크와 협업 관계를 표현하는 Node/Edge JSON입니다. `report_translations`는 1:N 관계로 동일 보고서의 다국어 요약을 저장하여 번역 재생성 비용을 제거합니다.
+`reports`는 리포트 모델이 생성하는 일간/주간 분석 보고서의 메타데이터 행입니다. `visualization`은 인적 네트워크와 협업 관계를 표현하는 Node/Edge JSON입니다. `report_translations`는 1:N 관계로 동일 보고서의 다국어 요약을 저장하여 번역 재생성 비용을 제거합니다.
 
-`status` 필드(`processing`/`completed`/`failed`)는 긴 Pro 추론이 진행 중일 때 UI가 로딩 상태를 표시할 수 있도록 합니다.
+`status` 필드(`processing`/`completed`/`failed`)는 긴 리포트 추론이 진행 중일 때 UI가 로딩 상태를 표시할 수 있도록 합니다.
 
 **English:**
 
-`reports` stores the metadata row for daily/weekly AI-generated reports produced by the Pro model. `visualization` is a Node/Edge JSON representing the human network and collaboration graph. `report_translations` holds 1:N multilingual summaries of the same report to avoid regeneration cost. The `status` field (`processing`/`completed`/`failed`) allows the UI to show loading state while the Pro inference is in progress.
+`reports` stores the metadata row for daily/weekly AI-generated reports produced by the report model. `visualization` is a Node/Edge JSON representing the human network and collaboration graph. `report_translations` holds 1:N multilingual summaries of the same report to avoid regeneration cost. The `status` field (`processing`/`completed`/`failed`) allows the UI to show loading state while the Pro inference is in progress.
 
 **식별자:** `ReportID` (phantom type `int64`) — [`internal/ids/ids.go#L17`](../../internal/ids/ids.go#L17)
 
@@ -210,7 +210,7 @@ type Report struct {
     ID            ReportID
     Status        string   // "processing" | "completed" | "failed"
     Visualization string   // Node/Edge JSON
-    IsTruncated   bool     // Why: flag when Pro hit token boundary
+    IsTruncated   bool     // Why: flag when the model hit token boundary
     Translations  map[string]string
 }
 ```
@@ -502,7 +502,7 @@ The constraints below are enforced at code or DB level. Violating them breaks da
 ## 7. Cross-References
 
 - **DB 스키마 상세 (테이블 DDL, 인덱스, 마이그레이션)** → [04-data-layer.md](04-data-layer.md)
-- **AI 식별/매핑 알고리즘 (Flash-Lite 노이즈 게이트, Flash 태스크 추출, Jaro-Winkler 중복 제거)** → [09-identity-and-dedup.md](09-identity-and-dedup.md)
+- **AI 식별/매핑 알고리즘 (Noise Filter 노이즈 게이트, 태스크 추출, Jaro-Winkler 중복 제거)** → [09-identity-and-dedup.md](09-identity-and-dedup.md)
 - **데이터 영속화 (sqlc 생성 흐름, store 레이어 패턴)** → [04-data-layer.md](04-data-layer.md)
 - **백그라운드 스캐너 및 Prime-Pool 분산** → [06-scanner-pipeline.md](06-scanner-pipeline.md)
 - **보고서 생성 파이프라인** → [08-services-business-logic.md](08-services-business-logic.md)

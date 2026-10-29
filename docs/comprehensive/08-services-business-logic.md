@@ -22,7 +22,7 @@ Handler (11) → Service (08) → Store (04) → DB
 ```
 
 Rules enforced:
-- Services **never** call external SDKs directly (Slack, Gmail, Notion, Gemini).
+- Services **never** call external SDKs directly (Slack, Gmail, Notion, the LLM provider).
   They receive interface types whose concrete implementations live in `channels/`
   or `ai/`. This enables test doubles without network I/O.
 - Store layer must not contain business logic (`→ [04-data-layer.md]`).
@@ -47,7 +47,7 @@ Rules enforced:
 | `daily_digest_service.go` | `DailyDigestService` | Daily Slack DM digest (Block Kit) |
 | `weekly_report_service.go` | `WeeklyReportService` | Weekly report → Notion export → Slack DM |
 | `reminder_service.go` | `ReminderService` | Deadline reminder DMs via configurable time windows |
-| `translation_service.go` | `TranslationService` | Batched/JIT Gemini translation with singleflight dedup |
+| `translation_service.go` | `TranslationService` | Batched/JIT LLM translation with singleflight dedup |
 | `notion_export.go` | `NotionExporter` | Markdown → Notion Block API page creation |
 | `lock_service.go` | `RoomLockService` | Per-room mutex to prevent scanner race conditions |
 | `ai_parser.go` | Pure functions | AI response JSON extraction (fenced + brace fallback) |
@@ -249,19 +249,19 @@ sequenceDiagram
     participant Scanner
     participant CompletionSvc
     participant Store
-    participant GeminiAI
+    participant LLM
 
     Scanner->>CompletionSvc: ProcessPotentialCompletion(msg)
     CompletionSvc->>Store: GetIncompleteByThreadID(threadID)
     alt no open tasks
-        CompletionSvc->>GeminiAI: Analyze (fallback extraction)
+        CompletionSvc->>LLM: Analyze (fallback extraction)
         CompletionSvc-->>Scanner: handled=true (marks processed, stops retry)
     else requester == user (self-reply)
         CompletionSvc->>Store: UpdateMessageCategory → requested
         CompletionSvc-->>Scanner: handled=true
     else open tasks found
-        CompletionSvc->>GeminiAI: EvaluateTaskTransition(parentTask, replyText)
-        GeminiAI-->>CompletionSvc: {Status: RESOLVE|UPDATE|NEW|NONE}
+        CompletionSvc->>LLM: EvaluateTaskTransition(parentTask, replyText)
+        LLM-->>CompletionSvc: {Status: RESOLVE|UPDATE|NEW|NONE}
         loop each open task
             CompletionSvc->>Store: HandleTaskState(resolve|update)
         end
@@ -353,8 +353,8 @@ three injected components:
 
 | Dependency | Interface | Role |
 |---|---|---|
-| `ReportSummarizer` | `Generate(ctx, email, logs, reportID)` | AI summary strategy (Flash single-pass) |
-| `*ai.GeminiClient` | Direct | Visualization and on-demand translation |
+| `ReportSummarizer` | `Generate(ctx, email, logs, window, reportID)` | AI summary strategy (single-pass) |
+| `*ai.AIClient` | Direct | Visualization and on-demand translation |
 | `*TranslationService` | Via `ProcessOnDemandTranslation` | JIT multi-language translation |
 
 **`GenerateReport` flow:**
@@ -506,7 +506,7 @@ not been reminded in that window.
 
 ## 5. Translation Service
 
-`TranslationService` centralizes all Gemini-powered translation with two
+`TranslationService` centralizes all LLM-powered translation with two
 deduplication mechanisms:
 
 | Mechanism | Scope | Implementation |
@@ -515,9 +515,9 @@ deduplication mechanisms:
 | Semaphore (cap 5) | Concurrent AI API calls | `chan struct{}` prevents rate-limit bursts |
 
 **`Translate` (single item):**
-- `isReport=true` path calls `gemini.TranslateReport`, preserves ` ```json ``` `
+- `isReport=true` path calls `llm.TranslateReport`, preserves ` ```json ``` `
   fences so the frontend renderer can convert them to table components.
-- `isReport=false` path calls `gemini.TranslateTaskMessage`, then strips
+- `isReport=false` path calls `llm.TranslateTaskMessage`, then strips
   markdown formatting via `ai.CleanMarkdownText`.
 - `reportID` is passed through for per-report token cost attribution in
   WhaTap APM.
@@ -525,7 +525,7 @@ deduplication mechanisms:
 **`TranslateBatch` (N task messages):**
 - Builds a singleflight key from `"batch-<lang>-<ids>"` to deduplicate page
   loads that trigger JIT for overlapping ID sets.
-- `gemini.TranslateTasksBatch` splits into chunks internally; partial successes
+- `llm.TranslateTasksBatch` splits into chunks internally; partial successes
   are surfaced when a later chunk fails — callers cache what succeeded rather
   than wasting prior token spend.
 
@@ -697,7 +697,7 @@ For the full test infrastructure and regression matrix, see `→ [17-testing.md]
 
 ## 11. FTS5-only Search & Cross-Channel Completion Matching (2026-07-22)
 
-The Gemini embedding pipeline was removed entirely on 2026-07-22 —
+The embedding pipeline was removed entirely on 2026-07-22 —
 `EmbeddingService`, `ai/embedding.go`, `store/embeddings_store.go`, and
 `handlers/handlers_embeddings.go` are all deleted. Archive search and
 completion-candidate matching now run on FTS5 alone; the `message_embeddings`
@@ -810,7 +810,7 @@ replay-window logic.
 | Topic | Chapter |
 |---|---|
 | Scanner triggers service entry points | `→ [06-scanner-pipeline.md]` |
-| AI extraction pipeline (LiteFilter → Flash → Pro) | `→ [07-ai-filter-pipeline.md]` |
+| AI extraction pipeline (LiteFilter → Task Extraction → Report) | `→ [07-ai-filter-pipeline.md]` |
 | Identity resolution, alias normalization, Jaro-Winkler | `→ [09-identity-and-dedup.md]` |
 | Room locks, prime-pool scheduler, atomic CAS | `→ [10-locking-and-concurrency.md]` |
 | Handler → Service call sites, HTTP API contracts | `→ [11-handlers-and-api.md]` |

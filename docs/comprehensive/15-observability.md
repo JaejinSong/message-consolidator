@@ -87,13 +87,13 @@ func WhatapMiddleware(next http.Handler) http.Handler {
 
 파일: [`internal/whataphttpx/whataphttpx.go`](../../internal/whataphttpx/whataphttpx.go)
 
-각 통합 SDK(Slack, Notion, Gmail, Gemini)별로 다른 패턴을 씁니다.
+각 통합 SDK(Slack, Notion, Gmail, DeepSeek)별로 다른 패턴을 씁니다.
 
 | 상황 | 함수 | 내부 동작 |
 |---|---|---|
 | 새 HTTP 클라이언트 (Slack-go 등) | `whataphttpx.Client()` | `NewRoundTrip(bg, nil)` → 새 transport |
 | OAuth2 클라이언트 래핑 (Gmail) | `whataphttpx.WrapClient(c)` | 기존 transport를 base로 보존 후 WhaTap 래핑 |
-| API Key 인증 (Gemini) | `whataphttpx.ClientWithAPIKey(key)` | `apiKeyTransport` → WhaTap 래핑 |
+| OpenAI 호환 SDK (DeepSeek) | `whataphttpx.Client()` | `go-openai` `ClientConfig.HTTPClient`에 주입 — 인증 헤더는 SDK가 설정 |
 
 **왜 별도 패키지인가?**  
 `google.golang.org/api/option.WithHTTPClient`를 지정하면 `WithAPIKey`, `WithCredentials`, `WithTokenSource`가 모두 무시됩니다. 각 통합마다 인증 방식이 달라 WhaTap RoundTripper 삽입 위치가 다르기 때문에, 이 패키지가 올바른 wrapping 순서를 중앙화합니다 (→ [05-channels.md](05-channels.md)).
@@ -155,10 +155,10 @@ defer method.End(methodCtx, err)
 
 ### 3-6. 외부 SDK Step: trace.Step
 
-Gemini API 같은 외부 SDK 호출에서 SDK가 자체 HTTP 클라이언트를 사용해 `whataphttpx`로 래핑하기 어려운 경우:
+외부 SDK 호출에서 SDK가 자체 HTTP 클라이언트를 사용해 `whataphttpx`로 래핑하기 어려운 경우:
 
 ```go
-trace.Step(ctx, "GeminiAnalyze", "", elapsedMs, value)
+trace.Step(ctx, "DeepSeek-Analyze", "", elapsedMs, value)
 ```
 
 `name`, `desc`, `elapsed(ms)`, `value` 파라미터로 커스텀 스텝을 추가합니다.
@@ -171,14 +171,13 @@ trace.Step(ctx, "GeminiAnalyze", "", elapsedMs, value)
 
 ## 4. WhaTap Gotcha
 
-### 4-1. SDK 인증 transport — WrapClient vs ClientWithAPIKey
+### 4-1. SDK 인증 transport — WrapClient vs Client
 
 `google.golang.org/api/option.WithHTTPClient`는 SDK 내부의 모든 인증 옵션을 무효화합니다. 따라서 custom client를 넘길 때는 인증을 client 자체에 내장해야 합니다.
 
 | 인증 방식 | 올바른 패턴 | 잘못된 패턴 |
 |---|---|---|
 | OAuth2/토큰 (Gmail) | `whataphttpx.WrapClient(oauth2Client)` | `whataphttpx.Client()` + `option.WithTokenSource` |
-| API Key (Gemini) | `whataphttpx.ClientWithAPIKey(key)` | `whataphttpx.Client()` + `option.WithAPIKey` |
 
 `whataphttpx.Client()`는 base transport가 `nil`이므로 인증 없이 403 응답을 받게 됩니다.
 
@@ -256,7 +255,7 @@ logger.LogDecision(logger.DecisionLog{
 
 파일: [`logger/ai_logger.go`](../../logger/ai_logger.go)
 
-**역할**: Gemini API 호출의 원문 프롬프트(input)와 raw 응답(output)을 별도 파일에 기록. 추출 품질 감사 및 프롬프트 디버깅 전용.
+**역할**: LLM API 호출의 원문 프롬프트(input)와 raw 응답(output)을 별도 파일에 기록. 추출 품질 감사 및 프롬프트 디버깅 전용.
 
 | 항목 | 값 |
 |---|---|
@@ -271,7 +270,7 @@ logger.LogDecision(logger.DecisionLog{
 logger.LogAIInferenceToFile(source, originalText, rawResponse)
 ```
 
-**결정 가이드**: Gemini 응답이 예상과 다를 때 → `ai_inference.log`에서 원문·응답 직접 확인
+**결정 가이드**: LLM 응답이 예상과 다를 때 → `ai_inference.log`에서 원문·응답 직접 확인
 
 → AI 필터 파이프라인 호출 흐름: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
@@ -335,7 +334,7 @@ defer safego.Recover("scanner-room-extract")
 | `message_id` | 어느 메시지에 대한 추론인지 역추적 |
 | `source` | 채널 종류 (slack/whatsapp/gmail/…) |
 | `original_text` | 전처리된 입력 텍스트 |
-| `raw_response` | Gemini 응답 전문 (JSON 포함) |
+| `raw_response` | LLM 응답 전문 (JSON 포함) |
 | `created_at` | 추론 시각 |
 
 **`token_usage`** (파일: [`store/queries/tokens.sql`](../../store/queries/tokens.sql))
@@ -343,7 +342,7 @@ defer safego.Recover("scanner-room-extract")
 | 컬럼 | 용도 |
 |---|---|
 | `step` | 파이프라인 단계 (ReportSummary, TranslateReport 등) |
-| `model` | 사용된 Gemini 모델명 |
+| `model` | 사용된 모델명 (과거 행에는 Gemini 모델명이 남아 있음) |
 | `source` | 채널 |
 | `report_id` | 특정 리포트 귀속 비용 계산용 |
 | `prompt_tokens / completion_tokens / call_count` | 집계 단위 |
@@ -383,7 +382,7 @@ SELECT model, SUM(prompt_tokens) ... GROUP BY model;  -- GetTokenUsageByModel
 logTokenUsage(ctx, email, "IdentityResolve", modelName, "", 0, resp)
 ```
 
-`IdentityResolver.proposeChunk`가 Gemini 응답 수신 후 `logTokenUsage`를 호출해 토큰을 `token_usage` 테이블에 귀속합니다. `step="IdentityResolve"`, `report_id=0` (리포트 비귀속). `ch07` Deltas에 기록된 "비용 귀속: store.AddTokenUsage 미호출 (개선 여지)" 항목이 이 커밋으로 해소됐습니다.
+`IdentityResolver.proposeChunk`가 LLM 응답 수신 후 `logTokenUsage`를 호출해 토큰을 `token_usage` 테이블에 귀속합니다. `step="IdentityResolve"`, `report_id=0` (리포트 비귀속). `ch07` Deltas에 기록된 "비용 귀속: store.AddTokenUsage 미호출 (개선 여지)" 항목이 이 커밋으로 해소됐습니다.
 
 ---
 
@@ -422,7 +421,7 @@ WhaTap 에이전트 동작에 필요한 환경변수 이름 (값 절대 인용 �
 | 주제 | 참조 챕터 |
 |---|---|
 | `whatapsql.OpenContext` DB 연결 풀 설정 | → [04-data-layer.md](04-data-layer.md) |
-| `whataphttpx` 채널별 사용 예 (Gmail/Slack/Gemini) | → [05-channels.md](05-channels.md) |
+| `whataphttpx` 채널별 사용 예 (Gmail/Slack/DeepSeek) | → [05-channels.md](05-channels.md) |
 | 백그라운드 고루틴 TX / 동시성 패턴 | → [10-locking-and-concurrency.md](10-locking-and-concurrency.md) |
 | `token_usage` / `ai_logger` AI 파이프라인 흐름 | → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) |
 

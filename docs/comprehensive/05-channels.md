@@ -33,7 +33,6 @@ Cross-references: → [03-backend-architecture.md](03-backend-architecture.md) (
 
 ```
 OAuth2/토큰 SDK  → whataphttpx.WrapClient(<인증된 클라이언트>)
-API key SDK      → whataphttpx.ClientWithAPIKey(apiKey)
 plain SDK        → whataphttpx.Client()
 ```
 

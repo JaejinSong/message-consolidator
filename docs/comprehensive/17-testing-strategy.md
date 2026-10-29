@@ -15,13 +15,13 @@
 | **Go 단위 + 통합 + 회귀** | 순수 함수 · DB 계층 · 핸들러 · regression | `go test -tags regression ./...` | 중간 (<30s) |
 | **TS 단위 (vitest)** | 프런트엔드 로직 · 렌더러 | `npm test` | 빠름 (<5s) |
 | **UI 검증** | 빌드 아티팩트 정적 분석 | `node tests/verify-loading-ui.cjs` | 빠름 (<3s) |
-| **AI 회귀 (선택)** | Gemini 분석 결과 안정성 | `make test-ai` | 느림 (VCR) |
+| **AI 회귀 (선택)** | DeepSeek 분석 결과 안정성 | `make test-ai` | 느림 (live API) |
 
 `bash unit-test.sh`는 위 3축(Go·NPM·UI)을 **동시(background PID)**로 실행하고 합산 결과를 출력한다. AI 회귀 테스트(`make test-ai`)는 `ai/` 소스 변경이 없으면 자동 건너뛰는 별도 진입점이다. 어느 축 하나라도 실패하면 exit 1.
 
 ### WHY: AI 회귀 테스트가 존재하는 이유
 
-Gemini 모델은 버전 deprecate 또는 내부 가중치 변화로 동일 입력에 다른 결과를 낼 수 있다. 또한 프롬프트 수정(drift)이 의도치 않은 task 추출 변화를 유발한다. 회귀 테스트는 이 두 위험을 **자동으로** 포착한다.
+LLM 모델은 버전 deprecate 또는 내부 가중치 변화로 동일 입력에 다른 결과를 낼 수 있다. 또한 프롬프트 수정(drift)이 의도치 않은 task 추출 변화를 유발한다. 회귀 테스트는 이 두 위험을 **자동으로** 포착한다.
 
 > AI 회귀 테스트는 `unit-test.sh`에서 분리되어 `make test-ai` / `make test-ai-force`로 실행된다 (→ 섹션 4).
 
@@ -47,7 +47,7 @@ Gemini 모델은 버전 deprecate 또는 내부 가중치 변화로 동일 입�
 | `services` | 22 | 비즈니스 로직 집중 |
 | `scanner` | 9 | 파이프라인 슬라이스 |
 | `handlers` | 9 | HTTP 핸들러 테이블 |
-| `ai` | 8 | 프롬프트 파서 + VCR |
+| `ai` | 8 | 프롬프트 파서 · 모델 해석 |
 | `channels` | 5 | 채널 연결 · 필터 |
 | `tests` | 2 | regression 패키지 (`ai_regression_test.go`, `gmail_mock_test.go`) |
 | 기타 | 4 | `logger`, `internal`, `config`, `auth` |
@@ -80,7 +80,7 @@ for _, tc := range cases { ... }
 
 - **DB**: 항상 실제 libsql in-memory DB (`testutil.SetupTestDB`). mock DB 금지.
 - **HTTP 외부 API**: `net/http/httptest.NewRecorder` + `httptest.NewServer` 패턴.
-- **AI (Gemini)**: VCR 파일 replay (→ 섹션 4) 또는 서비스 레이어에서 인터페이스 mock (`RegressionMockAI`).
+- **AI (DeepSeek)**: 회귀 테스트는 live API 호출(`DEEPSEEK_API_KEY` 필요, 없으면 skip — 섹션 4), 서비스 레이어는 인터페이스 mock (`RegressionMockAI`).
 
 ### 진입점
 
@@ -104,7 +104,7 @@ tests/
 ├── regression/
 │   ├── ai_regression_test.go   # AI 회귀 (//go:build regression)
 │   ├── gmail_mock_test.go      # Gmail 채널 목
-│   └── testdata/               # VCR 입력·기대값 (덤프는 로컬 전용, → 섹션 4)
+│   └── testdata/               # 회귀 입력·기대값 (live DeepSeek 호출, → 섹션 4)
 └── verify-loading-ui.cjs       # CSS/HTML 구조 검증 (Node.js)
 ```
 
@@ -173,54 +173,52 @@ test-ai-force:
 
 **AI_SOURCES** 감시 대상:
 ```
-ai/prompts  ai/prompts.go  ai/gemini.go  ai/executor.go  ai/analyzers.go  ai/rag.go
+ai/core  tests/regression/testdata
 ```
 
-### VCR (Video Cassette Recorder) 메커니즘
+### Live DeepSeek 회귀 메커니즘
 
 경로: [`tests/regression/ai_regression_test.go`](../../tests/regression/ai_regression_test.go)
 
-`vcrTransport`가 `http.RoundTripper`를 구현한다:
+VCR replay는 제거되었다. `TestAnalyze_Regression_DeepSeek`는 항상 live DeepSeek API를 호출하며, `DEEPSEEK_API_KEY`(환경 변수 또는 `.env`)가 없으면 skip한다.
 
-- **replay 모드** (기본): `testdata/<name>_vcr.dump` 파일을 읽어 HTTP 응답을 재생한다. API 키 불필요, 네트워크 비용 0.
-- **record 모드** (`UPDATE_GOLDEN=1` 또는 VCR 파일 없을 때): 실제 Gemini API 호출 후 덤프 파일을 기록한다.
-
-프롬프트 파일(`.prompt`)의 mtime이 VCR 덤프보다 최신이면 자동으로 record 모드로 전환한다 (`shouldRecord` 함수). 이것이 **prompt drift 감지** 핵심 메커니즘이다.
+- 골든 fixture(`testdata/<name>_input.txt` → `<name>_expected.json`)를 순차 실행한다 (`t.Parallel` 미사용 — 하나의 client를 공유하고 live API 버스트를 피한다).
+- **strict majority-vote** (기본): 케이스당 최대 3회 `Analyze`를 실행하고, 같은 필드에서 2회 이상 골든과 어긋나면 실패한다. 앞의 2회가 결과를 결정하면 조기 종료한다.
+- `AI_REGRESSION_LENIENT=1`: 필드 divergence를 실패가 아니라 로그로만 남기는 로컬 디버깅용 모드. 어느 모드든 `t.Log`로 출력된다.
+- 추출 실패(error) 또는 task가 있어야 하는 케이스의 추출 0건은 모드와 무관하게 항상 실패한다.
 
 ### testdata 구조
 
 경로: [`tests/regression/testdata/`](../../tests/regression/testdata/)
 
-각 케이스는 3~4개 파일 세트:
+각 케이스는 2~4개 파일 세트:
 
 | 파일 | 역할 | VCS |
 |---|---|---|
-| `<name>_input.txt` | Gemini에 전달할 원본 메시지 텍스트 | 추적 |
+| `<name>_input.txt` | LLM에 전달할 원본 메시지 텍스트 | 추적 |
 | `<name>_expected.json` | 기대하는 `[]store.TodoItem` | 추적 |
-| `<name>_vcr.dump` | HTTP 응답 바이너리 덤프 (replay용) | **비추적** (`.gitignore`) |
+| `<name>_tasks.json` | (선택) "Existing Tasks" 컨텍스트 시드 — update/resolve 전이 검증용 | 추적 |
 | `<name>_lang.txt` | (선택) 언어 힌트 (`ko`, `id` 등) | 추적 |
-
-`*_vcr.dump` 파일은 `.gitignore`에 등록되어 VCS 비추적 상태로 유지된다. SDK 버전 특이적이며 `UPDATE_GOLDEN=1` 환경 변수 또는 VCR 파일 부재 시 자동 재생성된다.
+| `<name>_chattype.txt` | (선택) chat type 힌트 | 추적 |
 
 ```bash
-# VCR 덤프 재생성 (실제 Gemini API 호출)
-UPDATE_GOLDEN=1 go test -v -tags regression ./tests/regression/...
+# live DeepSeek 회귀 실행 (DEEPSEEK_API_KEY 필요)
+go test -v -tags regression ./tests/regression/...
 ```
 
-현재 케이스 (8개): `01_simple_slack`, `02_indonesian_kita`, `03_no_tasks`, `04_we_pronoun`, `05_id_formats`, `gmail_twin_task`, `negative`, `slack_unrefined`.
+현재 케이스 (20개): `01_simple_slack`, `02_indonesian_kita`, `03_no_tasks`, `04_we_pronoun`, `05_id_formats`, `12_announced_decision_resolves`, `13_announced_decision_no_match`, `14_reschedule_updates_existing`, `15_ack_promise_updates_existing`, `16_done_ack_resolves_existing`, `17_future_promise_stays_open`, `18_new_request_extracted`, `19_directed_ask_named_person`, `20_fyi_mention_not_assignee`, `21_whatsapp_event_time_deadline`, `22_besok_jam_10_deadline`, `23_this_friday_deadline`, `gmail_twin_task`, `negative`, `slack_unrefined`.
 
 ### 회귀 검증 흐름
 
 ```
-TestAnalyze_Regression
+TestAnalyze_Regression_DeepSeek
   → filepath.Glob("testdata/*_input.txt")  // 케이스 자동 수집
-  → t.Parallel()                            // 케이스 동시 실행
-  → setupGeminiClientForTest               // VCR transport 주입
-  → client.Analyze(ctx, ...)               // 실제 or 재생 API 호출
-  → compareResults(t, expected, actual)    // 키워드 포함 여부 검증
+  → setupDeepSeekClientForTest             // live AIClient (DEEPSEEK_API_KEY)
+  → client.Analyze / AnalyzeWithContext    // 실제 API 호출 (최대 3회 majority vote)
+  → diffRun / matchResults                 // 골든 대비 필드 비교
 ```
 
-`compareResults`는 정확한 JSON 일치가 아닌 `taskKeywords` 맵 기반 키워드 포함 검사를 수행한다. 이는 모델이 표현을 약간 바꿔도 의미가 동일하면 통과하도록 하기 위해서다.
+`TestGmailExtraction_Mock`(`tests/regression/gmail_mock_test.go`)은 `testutil.NewChatCompletionServer`(httptest 기반 chat-completion 서버)로 네트워크 없이 Gmail 추출 경로를 검증한다.
 
 ### services 레이어 회귀
 
@@ -341,7 +339,7 @@ on:
 | `make test-ai` (AI 회귀) | 아니오 (수동) |
 | `verify-loading-ui.cjs` | 아니오 (수동) |
 
-WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 관리하는 비용 대비 효과가 현재는 음수다. `make test-ai`는 AI_SOURCES 변경 여부를 스스로 판단해 건너뛰므로 개발자 로컬 실행으로 충분하다.
+WHY 미포함: live API 호출이 필요한 AI 회귀를 위해 DeepSeek API 키를 CI secret으로 관리하는 비용 대비 효과가 현재는 음수다. `make test-ai`는 AI_SOURCES 변경 여부를 스스로 판단해 건너뛰므로 개발자 로컬 실행으로 충분하다.
 
 **Delta**: 단위 테스트(`go test ./...`, `npm test`)는 CI에 추가할 수 있다. API 키 없이 실행 가능하고 실행 시간이 짧다.
 
@@ -362,15 +360,15 @@ WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 �
 | 항목 | 이전 | 현재 |
 |---|---|---|
 | Go 커버리지 | 36.9% | 40.0% |
-| VCR fixtures | git 추적 | `.gitignore` (`*_vcr.dump`) 비추적 |
+| AI 회귀 방식 | VCR replay | live DeepSeek 호출 (VCR 덤프 제거) |
 | vitest 기본 환경 | `happy-dom` | `node` (DOM 필요 파일만 개별 `happy-dom`) |
 | 테스트 진입점 구조 | unit · regression · AI 분리 | Go unit + regression 통합, AI는 `make test-ai` 별도 |
-| AI 회귀 케이스 수 | 6개 | 8개 (`negative`, `slack_unrefined` 추가) |
+| AI 회귀 케이스 수 | 6개 | 20개 |
 
 ### Known Deltas (미해결 사항)
 
 1. **CI 테스트 미자동화**: `go test ./...`와 `npm test`가 CI workflow에 없다. lint 단독으로는 논리 오류를 잡지 못한다.
-2. **회귀 VCR 케이스 확장**: 현재 8개 케이스. WhatsApp/Telegram 채널용 케이스 부재.
+2. **회귀 케이스 확장**: 현재 20개 케이스. WhatsApp/Telegram 채널용 케이스 부재.
 3. **핸들러 커버리지 갭**: `handlers/` 9개 파일 중 `handlers_gmail.go`, `handlers_whatsapp.go`, `handlers_stats.go` 등의 통합 테스트가 얕다.
 4. **store 테스트 DB 전략**: `store.TestDSN` + `SetMaxOpenConns(1)` 방식은 병렬 테스트 패키지 간 DB 상태 공유를 전제한다. 패키지 간 격리가 필요하면 `ResetForTest`를 각 테스트 함수에서 명시적으로 호출해야 한다.
 
@@ -381,6 +379,6 @@ WHY 미포함: GCP e2-micro 인프라에서 Gemini API 키를 CI secret으로 �
 - **`*_test.go` 총 파일 수**: 88개
 - **`*.test.ts` 총 파일 수**: 21개
 - **Go 커버리지**: 40.0%
-- **AI 회귀 testdata 위치**: [`tests/regression/testdata/`](../../tests/regression/testdata/) (케이스 8개, `*_vcr.dump`는 로컬 전용)
+- **AI 회귀 testdata 위치**: [`tests/regression/testdata/`](../../tests/regression/testdata/) (케이스 20개, live DeepSeek 호출)
 - **단위 테스트 스크립트**: [`unit-test.sh`](../../unit-test.sh) — 3축 병렬 실행 (Go·NPM·UI), 단일 exit code
 - **CI**: lint 전용 ([`.github/workflows/lint.yml`](../../.github/workflows/lint.yml)), 테스트 자동화 미포함

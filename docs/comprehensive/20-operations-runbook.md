@@ -23,7 +23,7 @@
 | 인스턴스 기동/재기동 | O | X |
 | 환경변수·시크릿 관리 | O | X |
 | Slack Bot Token 설정 | O | X |
-| Gemini API Key 관리 | O | X |
+| DeepSeek API Key 관리 | O | X |
 | WhaTap 에이전트 모니터링 | O | X |
 | Gmail OAuth 연동 | X | O |
 | WhatsApp QR 페어링 | X | O |
@@ -247,21 +247,21 @@ DELETE FROM telegram_credentials WHERE user_email = '<user_email>';
 
 ---
 
-### 시나리오 7 — Gemini API Quota 초과
+### 시나리오 7 — LLM API Quota/Rate Limit 초과
 
 **증상**
-- `app.log`에 `gemini: 429 RESOURCE_EXHAUSTED` 또는 `quota exceeded`
+- `app.log`에 `[DEEPSEEK] API call failed (attempt N/M)` 경고와 함께 `status code: 429` 또는 quota 관련 메시지
 - AI 추출 결과가 비어있거나 빈 응답
 - 보고서 생성 실패
 - `token_usage` 테이블 값이 할당량 근처
 
 **원인**
-- 분당/일당 Gemini API 요청 한도 초과
+- 분당/일당 LLM API(DeepSeek, Ollama Cloud) 요청·사용량 한도 초과
 - 데이터가 많은 기간의 보고서 생성 시 토큰 한도 초과
 
 **대응 절차**
 
-1. Google Cloud Console → Gemini API → 쿼터 현황 확인.
+1. Ollama Cloud 계정의 사용량·한도 현황 확인.
 2. `token_usage` 테이블에서 당일 사용량 조회:
 
 ```sql
@@ -272,8 +272,8 @@ GROUP BY step, model;
 ```
 
 3. 단기: 보고서 생성 기간을 짧게 분할하여 재시도 안내.
-4. 장기: `GEMINI_ANALYSIS_MODEL` 을 lite 모델로 교체 검토 (비용·속도 트레이드오프 있음 — 운영자 판단).
-5. 할당량 증가: Google Cloud Console → 쿼터 증가 요청 제출.
+4. 장기: 더 가벼운 모델로 교체 검토 (비용·품질 트레이드오프 있음 — 운영자 판단). 단계별 모델은 프롬프트 프론트매터 `deepseekModel`이 `DEEPSEEK_*_MODEL` 환경변수보다 우선하므로 해당 `.prompt` 파일을 함께 확인.
+5. 한도 증가: Ollama Cloud 플랜/한도 조정 요청.
 
 ---
 
@@ -449,7 +449,7 @@ SEV-1/2 사고 후 24시간 이내 작성:
 |---|---|---|---|
 | `app.log` | `$LOG_DIR/app.log` (기본: `/app/logs/app.log`) | 운영 로그 (INFO/WARN/ERROR) + AI 라우팅 결정 (`[DECISION]` 태그) | **7일** |
 | `app.log.*` | 동일 디렉토리 | 로테이션된 압축 파일 | 최대 30개 (MaxBackups) |
-| `ai_inference.log` | `$LOG_DIR/ai_inference.log` | Gemini 프롬프트 입출력 원문 | **30일** |
+| `ai_inference.log` | `$LOG_DIR/ai_inference.log` | LLM 프롬프트 입출력 원문 | **30일** |
 | `whatap-boot-*.log` | `/app/logs/whatap-boot-*.log` | WhaTap 에이전트 부트 로그 | WhaTap SDK 자체 관리 |
 
 > `$LOG_DIR`은 환경변수 `LOG_DIR`로 오버라이드 가능 (기본값: `/app/logs`).

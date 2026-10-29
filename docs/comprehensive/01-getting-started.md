@@ -48,7 +48,7 @@ Create `.env` at the project root. `.env.development` is Vite-only (frontend pro
 |---|---|---|
 | `TURSO_DATABASE_URL` | Turso libsql DSN | `libsql://your-db.turso.io` |
 | `TURSO_AUTH_TOKEN` | Turso 인증 토큰 (기밀) | `eyJ...` |
-| `GEMINI_API_KEY` | Google Gemini API Key | `AIza...` |
+| `DEEPSEEK_API_KEY` | DeepSeek(Ollama Cloud) API Key — 미설정 시 AI 추출·번역·리포트 비활성 | `...` |
 | `GOOGLE_CLIENT_ID` | OAuth2 클라이언트 ID | `xxx.apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | OAuth2 시크릿 | `GOCSPX-...` |
 | `AUTH_SECRET` | 세션 쿠키 서명 키 | 32자 이상 랜덤 문자열 |
@@ -62,8 +62,11 @@ Create `.env` at the project root. `.env.development` is Vite-only (frontend pro
 |---|---|---|
 | `LOG_LEVEL` | `INFO` | DEBUG / INFO / WARN / ERROR |
 | `PORT` | `8080` | HTTP 리슨 포트 |
-| `GEMINI_ANALYSIS_MODEL` | `gemini-3-flash-preview` | Task 추출 모델 |
-| `GEMINI_TRANSLATION_MODEL` | `gemini-3.1-flash-lite` | 번역 모델 |
+| `DEEPSEEK_BASE_URL` | `https://ollama.com/v1` | OpenAI 호환 엔드포인트 |
+| `DEEPSEEK_FILTER_MODEL` | `deepseek-v4.1-flash` | 소음 필터 모델 (부팅 fallback, 프롬프트 프론트매터 우선) |
+| `DEEPSEEK_ANALYSIS_MODEL` | `deepseek-v4.1-flash` | Task 추출 모델 (부팅 fallback, 프롬프트 프론트매터 우선) |
+| `DEEPSEEK_TRANSLATION_MODEL` | `deepseek-v4.1-flash` | 번역 모델 (부팅 fallback, 프롬프트 프론트매터 우선) |
+| `DEEPSEEK_REPORT_MODEL` | `glm-5.3-flash` | 리포트 모델 (부팅 fallback, `report_summary.prompt` 프론트매터 우선) |
 | `TURSO_SYNC_URL` | — | 로컬 SQLite ↔ Turso 동기화 URL |
 | `TURSO_SYNC_INTERVAL` | — | 동기화 간격 (e.g. `5m`) |
 | `AUTO_ARCHIVE_DAYS` | `7` | 자동 아카이브 기준일 |

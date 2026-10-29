@@ -19,8 +19,8 @@ Check in order:
 **The AI extracted the wrong requester or assignee.**
 Use the **Edit** button on the task to fix it manually. If you're often missing from the Received tab, add your names and aliases in **Settings → My Aliases**.
 
-**Does Gemini learn from my messages?**
-Your messages are sent to the Gemini API for task extraction. Whether Google uses API data for training is governed by Google's API data policy. If you have sensitive conversations, consider not connecting that channel.
+**Does the AI learn from my messages?**
+Your messages are sent to an external AI service (DeepSeek, hosted on Ollama Cloud) for task extraction. Whether API data is used for training is governed by that provider's API data policy. If you have sensitive conversations, consider not connecting that channel.
 
 **Do all my WhatsApp group messages come in?**
 Yes — all 1-on-1 chats and groups you're a member of are monitored. Per-conversation blocking is not currently supported.
@@ -49,7 +49,7 @@ Slack uses a workspace-level Bot Token set up by your admin. When you sign in, y
 | Slack | Admin-configured Bot Token | Reads channel messages and user info |
 
 **Where is my data stored?**
-All data is stored in this instance's own database (Turso/SQLite). Message content is sent to the Google Gemini API for task extraction — it is not forwarded to any other external service (unless you explicitly export to Notion).
+All data is stored in this instance's own database (Turso/SQLite). Message content is sent to the external AI service for task extraction — it is not forwarded to any other external service (unless you explicitly export to Notion).
 
 **Session security:**
 Login sessions use HttpOnly cookies (not accessible by JavaScript). Gmail OAuth tokens and Telegram sessions are stored in the instance database — this requires trusting your instance admin.

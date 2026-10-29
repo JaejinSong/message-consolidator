@@ -16,10 +16,10 @@
 | **Service** | 도메인 규칙·AI 연동·게임화 로직. DB를 직접 호출하지 않음 |
 | **Store** | Turso(libsql) 쿼리 전담, 비즈니스 로직 금지 |
 
-지원 패키지(`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`)는 레이어를 수평으로 보조합니다. `ai/`는 Gemini SDK 결합 레이어이고, `ai/core/`는 SDK import 없는 순수 로직(프롬프트·파서·분석기·RAG)을 분리한 서브패키지입니다. `channels`와 `scanner`는 고루틴 기반 독립 수명 주기를 가지며, `main.go`가 IoC 후크로 연결합니다.
+지원 패키지(`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`)는 레이어를 수평으로 보조합니다. `ai/`는 LLM transport 결합 레이어(DeepSeek, OpenAI 호환 엔드포인트)이고, `ai/core/`는 클라이언트 라이브러리 import 없는 순수 로직(프롬프트·파서·분석기·RAG)을 분리한 서브패키지입니다. `channels`와 `scanner`는 고루틴 기반 독립 수명 주기를 가지며, `main.go`가 IoC 후크로 연결합니다.
 
 **English:**
-The backend is divided into three vertical layers with a one-way dependency rule (Handler → Service → Store). Circular imports are blocked at compile time. Support packages (`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`) assist horizontally without forming a fourth layer. `ai/` is the Gemini SDK coupling layer; `ai/core/` is a sub-package containing pure logic (prompts, parsers, analyzers, RAG) with no SDK import. `channels` and `scanner` each own their own goroutine lifecycle; `main.go` wires them via IoC hooks.
+The backend is divided into three vertical layers with a one-way dependency rule (Handler → Service → Store). Circular imports are blocked at compile time. Support packages (`config`, `channels`, `ai`, `ai/core`, `scanner`, `auth`, `logger`, `internal/*`, `types`) assist horizontally without forming a fourth layer. `ai/` is the LLM transport coupling layer (DeepSeek over an OpenAI-compatible endpoint); `ai/core/` is a sub-package containing pure logic (prompts, parsers, analyzers, RAG) with no client-library import. `channels` and `scanner` each own their own goroutine lifecycle; `main.go` wires them via IoC hooks.
 
 ```mermaid
 graph LR
@@ -35,7 +35,7 @@ graph LR
 
     subgraph Business["Business Layer"]
         services["services/"]
-        ai["ai/\n(Gemini SDK 결합)"]
+        ai["ai/\n(LLM transport 결합)"]
         aicore["ai/core/\n(순수 로직)"]
     end
 
@@ -188,8 +188,8 @@ Services are the single source of truth for domain rules. They call `store/` dir
 
 - **주요 서비스:**
   - `TasksService` — 태스크 생성·완료·머지·번역 (핵심)
-  - `ReportsService` — Gemini 기반 주간/일간 리포트 생성
-  - `TranslationService` — Gemini 다국어 번역
+  - `ReportsService` — LLM 기반 주간/일간 리포트 생성
+  - `TranslationService` — LLM 다국어 번역
   - `CompletionService` — 스레드 완료 자동 감지
   - `ReminderService` — Slack DM 기반 미완료 태스크 알림
   - `ConsolidateService` — 채널별 메시지 중복 제거·통합
@@ -199,7 +199,7 @@ Services are the single source of truth for domain rules. They call `store/` dir
   - [`services/tasks.go`](../../services/tasks.go)
   - [`services/reports_service.go`](../../services/reports_service.go)
   - [`services/task_routing.go`](../../services/task_routing.go)
-- **외부 의존:** `ai/` (Gemini), `store/`, `channels/SlackClient`
+- **외부 의존:** `ai/` (DeepSeek), `store/`, `channels/SlackClient`
 
 → Scanner와의 연계: [06-scanner-pipeline.md](06-scanner-pipeline.md)
 → AI 서비스 상세: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
@@ -271,28 +271,29 @@ Scanner polls channels at randomized prime-second intervals (59–73 s) to avoid
 
 ---
 
-### 2.8 `ai/` — Gemini SDK 결합 레이어
+### 2.8 `ai/` — LLM transport 결합 레이어
 
 **한국어:**
-`ai/`는 Google Gemini SDK와의 결합 지점입니다. Gemini SDK를 직접 import하는 파일만 이 패키지에 놓이며, 순수 로직(프롬프트·파서·분석기·RAG)은 SDK import 없는 `ai/core/`로 분리됩니다. `GeminiClient`는 분석 모델(`gemini-3-flash-preview`)과 번역 모델(`gemini-3.1-flash-lite`)을 분리해 비용을 최적화합니다.
+`ai/`는 텍스트 생성 공급자(DeepSeek, Ollama Cloud의 OpenAI 호환 엔드포인트)와의 결합 지점입니다. 네트워크 호출은 `LLMTransport` 인터페이스 뒤에 있고, 순수 로직(프롬프트·파서·분석기·RAG)은 클라이언트 라이브러리 import 없는 `ai/core/`로 분리됩니다. `AIClient`는 단계별(`filter`/`analyze`/`translate`/`report` 등) `modelSpec`(모델 + thinking 모드)을 가지며, 프롬프트 프론트매터의 `deepseekModel`/`deepseekThinking`이 있으면 우선 적용됩니다.
 
 **English:**
-`ai/` is the Gemini SDK coupling layer — only files that directly import the SDK live here. Pure logic (prompts, parsers, analyzers, RAG) is isolated in `ai/core/`, which has no SDK dependency. Two model slots (analysis + translation) let heavier models be assigned only where needed.
+`ai/` is the coupling layer to the single text-generation provider (DeepSeek, via an OpenAI-compatible endpoint). The network call sits behind the `LLMTransport` interface; pure logic (prompts, parsers, analyzers, RAG) is isolated in `ai/core/`, which has no client-library dependency. `AIClient` keeps a per-stage `modelSpec` (model + thinking mode); a prompt's `deepseekModel`/`deepseekThinking` frontmatter overrides it when present.
 
-- **주요 심볼:** `GeminiClient`, `NewGeminiClient()`, `IdentityResolver`, `GeminiLiteFilter`
+- **주요 심볼:** `AIClient`, `NewAIClient()`, `LLMTransport`, `IdentityResolver`, `LiteFilter`
 - **주요 파일:**
-  - [`ai/client.go`](../../ai/client.go) — 클라이언트, 모델 분리
+  - [`ai/client.go`](../../ai/client.go) — 클라이언트, 단계별 모델 분리
+  - [`ai/deepseek.go`](../../ai/deepseek.go) — OpenAI 호환 DeepSeek transport
   - [`ai/identity_resolver.go`](../../ai/identity_resolver.go) — 발신자 아이덴티티 해석
   - [`ai/filter_service.go`](../../ai/filter_service.go) — 노이즈 게이트 필터
-- **외부 의존:** `google.golang.org/genai`, `whataphttpx.ClientWithAPIKey()`
+- **외부 의존:** `github.com/sashabaranov/go-openai`, `whataphttpx.Client()`
 
 #### `ai/core/` — 순수 로직 서브패키지
 
 **한국어:**
-`ai/core/`는 Gemini SDK import 없는 순수 Go 로직만 포함합니다. 프롬프트 렌더링, 응답 파싱, 메시지 분류 분석기, RAG 컨텍스트 조립, 추출 컨텍스트 타입 등이 여기에 있습니다. SDK와 분리되어 있어 단독 단위 테스트가 가능합니다.
+`ai/core/`는 LLM 클라이언트 라이브러리 import 없는 순수 Go 로직만 포함합니다. 프롬프트 렌더링, 응답 파싱, 메시지 분류 분석기, RAG 컨텍스트 조립, 추출 컨텍스트 타입 등이 여기에 있습니다. transport와 분리되어 있어 단독 단위 테스트가 가능합니다.
 
 **English:**
-`ai/core/` contains pure Go logic with no Gemini SDK dependency. This makes it independently unit-testable. All prompt rendering, response parsing, message analyzers, and RAG logic live here.
+`ai/core/` contains pure Go logic with no LLM client-library dependency. This makes it independently unit-testable. All prompt rendering, response parsing, message analyzers, and RAG logic live here.
 
 - **주요 심볼:** `SourceAnalyzer`, `ExtractionContext`, `RAG`, 프롬프트 렌더러
 - **주요 파일:**
@@ -381,13 +382,12 @@ DB 기본키를 타입 안전하게 다루기 위한 팬텀 타입 정의입니�
 - [`internal/safego/safego.go`](../../internal/safego/safego.go)
 
 #### `internal/whataphttpx` — WhaTap HTTP 계측 중앙화
-모든 아웃바운드 HTTP 통합이 WhaTap HTTPC step을 보고하도록 RoundTripper를 중앙 관리합니다. 세 가지 팩토리가 있습니다:
+모든 아웃바운드 HTTP 통합이 WhaTap HTTPC step을 보고하도록 RoundTripper를 중앙 관리합니다. 두 가지 팩토리가 있습니다:
 
-- `Client()` — 신규 plain HTTP 클라이언트 (Slack 등)
+- `Client()` — 신규 plain HTTP 클라이언트 (Slack, DeepSeek 등)
 - `WrapClient(c)` — OAuth2 토큰 인젝션이 된 기존 클라이언트 래핑 (Gmail)
-- `ClientWithAPIKey(key)` — API Key 헤더 주입 + WhaTap 계측 (Gemini)
 
-> `WithHTTPClient`를 쓰면 google SDK가 `WithAPIKey`를 무시하므로, Gemini는 반드시 `ClientWithAPIKey`를 사용해야 합니다. (CLAUDE.md SDK auth transport 섹션 참고)
+> DeepSeek transport는 `openai.DefaultConfig(apiKey)`가 `Authorization` 헤더를 설정하고, `HTTPClient`에 `whataphttpx.Client()`를 주입해 WhaTap 계측만 얹습니다.
 
 - [`internal/whataphttpx/whataphttpx.go`](../../internal/whataphttpx/whataphttpx.go)
 
@@ -469,7 +469,7 @@ sequenceDiagram
     note over ovl: 5단계 — DB 관리 값으로 cfg 재덮기 (비치명적)
     m->>log: logger.SetLevel(cfg.LogLevel) (오버레이 후 재적용)
     m->>sc: scanner.Init(cfg)
-    note over sc: 6단계 — GeminiClient, 서비스 인스턴스, Slack 클라이언트
+    note over sc: 6단계 — AIClient, 서비스 인스턴스, Slack 클라이언트
     m->>ai: initAIServices(ctx, cfg)
     note over ai: 7단계 — ReportsService, TasksService, IdentityResolver
     m->>sc: scanner.WireWeeklyReport(reportsSvc) + WireDailyDigest(reportsSvc)
@@ -494,8 +494,8 @@ sequenceDiagram
 | **2. config 로딩** | DB URL, API 키 등 이후 모든 컴포넌트가 `cfg`를 필요로 함 |
 | **3. trace.Init** | [`store/db.go:65`](../../store/db.go#L65)의 `whatapsql.OpenContext`가 trace 비활성화 상태에서는 SQL step을 기록하지 않음. trace.Init이 `store.InitDB`보다 앞서야 SQL 계측이 활성화됨 |
 | **4. store.InitDB** | 마이그레이션·VIEW 재구성·캐시 초기화까지 포함. AI 서비스보다 앞서야 서비스가 DB를 안전하게 쿼리 가능 |
-| **5. OverlayFromDB** | `.env`로 로드한 cfg를 DB 관리 값으로 재덮음. scanner.Init보다 앞서야 Gemini API 키 등 오버레이된 값이 적용됨. 실패해도 기본값으로 계속 동작(비치명적) |
-| **6. scanner.Init** | cfg(GeminiAPIKey 등)를 받아 내부 서비스를 초기화. OverlayFromDB 이후이므로 DB 오버레이된 키가 반영됨 |
+| **5. OverlayFromDB** | `.env`로 로드한 cfg를 DB 관리 값으로 재덮음. scanner.Init보다 앞서야 DeepSeek API 키 등 오버레이된 값이 적용됨. 실패해도 기본값으로 계속 동작(비치명적) |
+| **6. scanner.Init** | cfg(DeepSeekAPIKey 등)를 받아 내부 서비스를 초기화. OverlayFromDB 이후이므로 DB 오버레이된 키가 반영됨 |
 | **7. initAIServices** | scanner와 독립적인 Reports/Tasks AI 서비스 인스턴스 생성. API 핸들러에 주입 |
 | **IoC 훅 (setupApp 내)** | `wireWhatsAppHooks/wireTelegramHooks`는 `bootChannelClients` 이전에 실행. 채널 매니저가 OnConnected를 실행하기 전에 스토어 콜백이 등록되어야 WAJID/TgID가 DB에 기록됨 |
 | **bootChannelClients** | 사용자별 고루틴을 띄움. ctx가 아닌 `context.Background()`로 실행하는 이유는 boot ctx 종료 후에도 채널 생명 주기가 독립적으로 지속되어야 하기 때문 |
@@ -645,11 +645,11 @@ case <-ticker.C:
 
 | 주제 | 링크 |
 |------|------|
-| ai/ 패키지 분리 델타 | `ai/` (Gemini SDK 결합: GeminiClient·EmbeddingClient·LiteFilter) + `ai/core/` (순수 로직: SourceAnalyzer·ExtractionContext·RAG·프롬프트 렌더링, SDK import 없음) |
+| ai/ 패키지 분리 델타 | `ai/` (LLM transport 결합: AIClient·LiteFilter·IdentityResolver) + `ai/core/` (순수 로직: SourceAnalyzer·ExtractionContext·RAG·프롬프트 렌더링, 클라이언트 라이브러리 import 없음) |
 | 데이터 레이어 (DB 스키마, sqlc 워크플로, 마이그레이션, 캐시) | [04-data-layer.md](04-data-layer.md) |
 | 채널 어댑터 (Slack, WhatsApp, Telegram, Gmail) | [05-channels.md](05-channels.md) |
 | Scanner 상세 (primeLoop, 스캔 파이프라인, 주간/일간 리포트) | [06-scanner-pipeline.md](06-scanner-pipeline.md) |
-| AI 엔진 (Gemini 클라이언트, RAG, 필터, 프롬프트) | [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) |
+| AI 엔진 (AI 클라이언트, RAG, 필터, 프롬프트) | [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) |
 | 인증 (Google OAuth 2.0 플로우, 세션 쿠키) | [12-auth-and-security.md](12-auth-and-security.md) |
 | 로깅·APM (WhaTap 계측, 로그 레벨, AI 로거) | [15-observability.md](15-observability.md) |
 | 도메인 모델 (Task, Report, User, Message) | [02-domain-model.md](02-domain-model.md) |
