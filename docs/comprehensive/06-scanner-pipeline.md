@@ -139,7 +139,7 @@ var primePool = []time.Duration{
 | daily-digest | `runDailyDigest` | `/Background-DailyDigest` |
 | weekly-report | `runWeeklyReport` | `/Background-WeeklyReport` |
 
-> TECH.md는 "8 loop"로 기재되어 있으나, 현재 코드(`scanner.go:61-72`)에는 11개 루프가 등록되어 있습니다. Deadline reminder, daily digest, weekly report가 이후 추가되었습니다. → **Deltas from legacy docs** 참조.
+> 현재 코드(`scanner.go:61-72`)에는 11개 루프가 등록되어 있습니다.
 
 ### 동작 모식
 
@@ -368,17 +368,7 @@ defer lock.Unlock()
 
 ---
 
-## 9. Deltas from Legacy Docs & Cross-References
-
-### Legacy docs와의 차이
-
-| 항목 | TECH.md 기재 | 실제 코드 (2026-04-30) |
-|---|---|---|
-| Loop 수 | 8개 | 11개 (`deadline-reminder`, `daily-digest`, `weekly-report` 추가) |
-| Prime pool 설명 | "4개 채널 + 3개 유지보수 + 1개 sweep = 8 loop" | 동일 pool(5종 prime), 루프 수만 증가 |
-| Gmail scanner 위치 | 미명시 | `channels.ScanGmail` (채널 레이어) — `performGmailScan`은 래퍼 |
-| Weekly report | 미수록 | commit `a3a1e01` — Block Kit DM, multi-recipient |
-| Stale 룰 | 미수록 | commit `a3a1e01` — 3-working-day |
+## 9. Cross-References
 
 ### Cross-References
 

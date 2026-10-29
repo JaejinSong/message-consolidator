@@ -68,7 +68,7 @@ Deterministic string matching cannot handle:
 - **Partial name matches**: "Smith, J." vs "John Smith" — one token is shared, but so might it be for two distinct Smiths.
 - **Cross-channel display name drift**: Slack display names are user-set free text; Gmail names come from contacts; WhatsApp uses phone address books.
 
-The Jaro-Winkler similarity (`store/similarity.go`) handles fuzzy string distance locally (threshold 0.85 per TECH.md), but it is insufficient alone — it produces false positives for short common names. Gemini provides semantic disambiguation with a stated confidence score.
+The Jaro-Winkler similarity (`store/similarity.go`) handles fuzzy string distance locally (threshold 0.85), but it is insufficient alone — it produces false positives for short common names. Gemini provides semantic disambiguation with a stated confidence score.
 
 ### 3.3 Chunking Strategy
 

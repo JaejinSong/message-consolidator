@@ -56,7 +56,7 @@
 
 **Context Window Optimization (컨텍스트 윈도우 최적화)**
 — Step 1 Raw Parser가 Gmail은 15,000자, Chat은 30,000자로 입력을 잘라 LLM 토큰 낭비를 방지하는 기법.
-— [TECH.md](../../TECH.md)
+— [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
 ---
 
@@ -125,7 +125,7 @@
 
 **Harmonic Resonance (조화 공명)**
 — 두 주기 타이머가 LCM 주기로 정렬되어 동시에 발화하는 현상. Prime-Pool로 구조적 회피.
-— [TECH.md § 4](../../TECH.md)
+— [06-scanner-pipeline.md](06-scanner-pipeline.md)
 
 ---
 
@@ -229,7 +229,7 @@
 
 **Skip-when-running (실행 중 스킵)**
 — atomic CAS로 구현. 한 사이클이 다음 tick까지 늘어져도 queue 폭증 없이 단순 skip. 회복력 확보 목적.
-— [TECH.md § 4](../../TECH.md)
+— [06-scanner-pipeline.md](06-scanner-pipeline.md)
 
 **sqlc**
 — SQL 쿼리 파일(`store/queries/*.sql`)에서 타입 안전한 Go 코드(`db/*.sql.go`)를 자동 생성하는 도구. 생성 파일 직접 수정 금지.

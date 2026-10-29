@@ -50,17 +50,7 @@ graph TD
 | Stage 2 | `gemini-3-flash-preview` | 구조화된 JSON 추출 + 다국어 작업명 영문 정규화. Flash는 Flash-Lite 대비 1.5–2× 정확도 우위 |
 | Stage 3 | `gemini-3-flash-preview`<br/>(thinking model) | 복수 메시지 통합, 전략적 통찰, 긴 Markdown 보고서 생성. `ReportMaxTokens=32768`로 thinking 토큰을 충분히 확보 |
 
-### Deltas — TECH.md 모델명 stale 경고
-
-TECH.md §2는 "Gemini 3.1 Flash-Lite", "Gemini 3 Flash", "Gemini 3.1 Pro"로 기술하고 있으나, 실제 코드의 기본값은 다릅니다.
-
-| TECH.md 표기 | 실제 기본값 (`gemini.go`) | 비고 |
-|---|---|---|
-| Gemini 3.1 Flash-Lite | `gemini-3.1-flash-lite-preview` | `lite_filter.prompt` 프론트매터에서도 동일 |
-| Gemini 3 Flash | `gemini-3-flash-preview` | `analysisModel` 기본값 |
-| Gemini 3.1 Pro | — | `report_summary.prompt` 프론트매터가 `gemini-3-flash-preview`로 라우팅. TECH.md §4의 "Pro" 표기는 stale |
-
-Stage 3가 Pro가 아닌 Flash를 쓰는 것처럼 보이는 이유는 Flash thinking 모드가 활성화되기 때문입니다. `ReportMaxTokens=32768`을 할당하면 모델은 내부 reasoning에 ~24K 토큰을 소비하고 ~8K를 가시 출력에 사용합니다. 이 예산을 8192로 줄이면 보고서 섹션이 무음으로 잘립니다(`FinishReasonMaxTokens` 경고 발생).
+Stage 3는 `report_summary.prompt` 프론트매터가 `gemini-3-flash-preview`(thinking mode)로 라우팅합니다. `ReportMaxTokens=32768`을 할당하면 모델은 내부 reasoning에 ~24K 토큰을 소비하고 ~8K를 가시 출력에 사용합니다. 이 예산을 8192로 줄이면 보고서 섹션이 무음으로 잘립니다(`FinishReasonMaxTokens` 경고 발생).
 
 ---
 
@@ -661,23 +651,7 @@ TokenUsage-<step>       → 프롬프트/완성 토큰 수 포함
 
 ---
 
-## 12. Deltas from Legacy Docs & Cross-References
-
-### Deltas
-
-| 항목 | TECH.md 표기 | 실제 구현 |
-|---|---|---|
-| Stage 3 모델 | "Gemini 3.1 Pro" | `gemini-3-flash-preview` (thinking mode) |
-| Stage 2 모델 | "Gemini 3 Flash" | `gemini-3-flash-preview` — 명칭은 일치 |
-| Stage 1 모델 | "Gemini 3.1 Flash-Lite" | `gemini-3.1-flash-lite-preview` — 명칭은 일치 |
-| Stage 3 토큰 예산 | 미기술 | `ReportMaxTokens=32768` (thinking 소비분 반드시 포함) |
-| Few-shot RAG | "RAG-like selection" | 키워드 기반 스코어링, 벡터 DB 없음 |
-| IdentityResolver token_usage | 미기술 | 현재 미귀속 (개선 여지) |
-| `new_extraction.prompt` | 미기술 | 파일 존재, 상수 미등록 — 실험적 |
-| `ai/analyzers.go` 등 위치 | `ai/` 루트 | `ai/core/` 서브패키지 |
-| Gemini SDK import | 이전 SDK | `google.golang.org/genai` (v1) |
-| `EmbeddingClient` | 없음 | `ai/embedding.go` — `gemini-embedding-001` 768d |
-| `LoadPrompt` 캐시 | 매 호출 파일 파싱 | prod 모드에서 `sync.Map` 캐시 |
+## 12. Cross-References
 
 ### Cross-References
 

@@ -29,7 +29,7 @@ graph TD
         SC[Background Scanner<br/>prime-pool ticker × 8]
     end
 
-    subgraph Pipeline["AI Filter Pipeline (TECH.md)"]
+    subgraph Pipeline["AI Filter Pipeline"]
         P1[Step 1: Raw Parser<br/>noise gate · context window]
         P2[Step 2: Flash-Lite<br/>noise filter]
         P3[Step 3: Flash<br/>task extraction · state eval]
@@ -92,7 +92,7 @@ graph TD
 **English:**
 A 4-stage cascade — Raw Parser noise gate → Flash-Lite binary filter → Flash task extraction → Pro report synthesis — balances cost, latency, and accuracy. The early parser stage prevents marketing/greeting noise from reaching any LLM call.
 
-→ 상세: [TECH.md](../../TECH.md)
+→ 상세: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 
 ---
 
@@ -132,9 +132,9 @@ A 4-stage cascade — Raw Parser noise gate → Flash-Lite binary filter → Fla
 | 역할 | 진입점 |
 |---|---|
 | **신규 개발자** | → [01-getting-started.md](01-getting-started.md) — 환경 설정부터 첫 빌드까지 |
-| **백엔드 개발자** | → `02-backend-architecture.md` (예정) · [TECH.md](../../TECH.md) · [main.go](../../main.go) |
+| **백엔드 개발자** | → `02-backend-architecture.md` (예정) · [main.go](../../main.go) |
 | **프론트엔드 개발자** | → `10-frontend-architecture.md` (예정) · [`src/`](../../src/) |
-| **AI / 파이프라인** | → [TECH.md](../../TECH.md) · `04-ai-pipeline.md` (예정) · [`ai/`](../../ai/) |
+| **AI / 파이프라인** | → [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md) · [`ai/`](../../ai/) |
 | **운영자** | → `22-ops-runbook.md` (예정) · `make install-service` · `make logs` |
 | **용어 모르겠으면** | → [99-glossary.md](99-glossary.md) |
 

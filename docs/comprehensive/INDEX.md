@@ -6,11 +6,11 @@
 
 ## 한국어
 
-이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 22개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `TECH.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
+이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 22개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
 
 ## English
 
-This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 22 chapters. Legacy docs (`CLAUDE.md`, `TECH.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
+This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 22 chapters. Legacy docs (`CLAUDE.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
 
 ---
 
@@ -88,7 +88,7 @@ Same structure — see chapter cross-references inside each file.
 1. **코드와 문서 동시 변경**: 코드 PR과 같은 PR에서 영향받은 챕터를 갱신. 분리된 PR 금지.
 2. **시점 표기**: 챕터 18(빌드/배포)과 21(릴리즈)에는 "최종 갱신: YYYY-MM-DD" 헤더 필수. 다른 챕터도 4분기에 한 번 sweep.
 3. **검증 명령**: 머지 전 아래 3개 명령이 모두 0 출력이어야 함 (broken link/anchor 차단).
-4. **레거시 문서**: `CLAUDE.md`/`TECH.md`/`docs/USER_MANUAL.md`/`knowledge/*.md`/`RELEASE_NOTES_*` 는 SSOT의 직전 스냅샷. 사용자 승인 후 별도 단계에서 redirect 헤더를 추가할 예정.
+4. **레거시 문서**: `CLAUDE.md`/`docs/USER_MANUAL.md`/`knowledge/*.md`/`RELEASE_NOTES_*` 는 SSOT의 직전 스냅샷. 사용자 승인 후 별도 단계에서 redirect 헤더를 추가할 예정.
 5. **새 챕터 추가**: 02-prefix 보존 (예: 22-new-topic.md). INDEX.md 표 + 빠른 진입점 + 주제별 인덱스 동시 갱신.
 6. **작성 규칙**: 한/영 병기, repo-relative 코드 링크, WHAT 금지 WHY/HOW, 스니펫 ≤ 8줄, 모호 시 추측 금지.
 
@@ -152,11 +152,6 @@ done
 
 | 출처 | 항목 | 이전 기술 | 현재 사실 | 관련 챕터 |
 |---|---|---|---|---|
-| TECH.md | Gemini 모델명 | "Gemini 3.1 Pro" 등 | `gemini-3-flash-preview`, `gemini-3.1-flash-lite` (config.go) | 07, 99 |
-| TECH.md | Prime 루프 갯수 | "8 loop" | 실제 11개 (5 prime: 59/61/67/71/73s) | 06 |
-| TECH.md | Slack polling 방식 | 미언급 | timestamp-based polling 채택 | 05 |
-| TECH.md | Gmail History API | 미언급 | 미사용, timestamp checkpoint 사용 | 05 |
-| TECH.md | WhatsApp 미디어 | 미언급 | 미구현 | 05 |
 | BACKEND_ARCHITECTURE.md | logger 책임 | "APM 래퍼 제공" | 별도 (logger=레벨 로그, APM은 internal/whataphttpx) | 03, 15 |
 | BACKEND_ARCHITECTURE.md | scanner AI 파이프 | "직접 전달" | scanner 자체 GeminiClient + 별도 handler용 AI | 03 |
 | BACKEND_ARCHITECTURE.md | internal 패키지 | 미언급 | ids/safego/whataphttpx/testutil 4개 | 03 |

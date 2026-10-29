@@ -446,22 +446,6 @@ Gmail refresh token이 만료된 경우 자동 알림 메커니즘이 현재 없
 
 ---
 
-## 7. Deltas from Legacy Docs / 레거시 문서 대비 변경사항
-
-`TECH.md`의 채널 설명은 파이프라인 관점에서 기술되어 있으며 어댑터 구현 세부사항이 없습니다. 이 챕터가 해당 공백을 채웁니다.
-
-| 항목 | 레거시(TECH.md) | 실제 코드 |
-|---|---|---|
-| Slack 메시지 수집 방식 | 언급 없음 | polling (`GetConversationHistoryContext`) |
-| Gmail 체크포인트 | 언급 없음 | Unix timestamp (`last_scan` 테이블), History API 미사용 |
-| Telegram auth 흐름 | 언급 없음 | 3-step (phone → code → optional 2FA), goroutine-channel 브릿지 |
-| WhatsApp 미디어 | 언급 없음 | 다운로드 미구현, 텍스트 표현(placeholder) |
-| whataphttpx 래핑 | CLAUDE.md에만 기술 | WrapClient(OAuth) vs Client(plain) vs ClientWithAPIKey 구분 명문화 |
-| Slack DM Bot | 없음 | Events API + Block Kit + slash command DM 인터페이스 추가 (§2.4) |
-| IM channel label | Name 빈 칸 처리 없음 | Name 빈 칸 시 `IsIM`→"DM", `IsMpIM`→"Group DM"으로 레이블링 (§2.5) |
-
----
-
 ## Cross-References / 관련 챕터
 
 - → [03-backend-architecture.md](03-backend-architecture.md) — Handler → Service → Store 의존 방향, bootChannelClients 호출 시점
