@@ -148,7 +148,7 @@ type UserAlias struct {
 	AliasName string `json:"alias_name"`
 }
 
-// TodoItem is the task structure returned by Gemini Analyze
+// TodoItem is the task structure returned by Analyze
 type TodoItem struct {
 	ID                 *MessageID      `json:"id,omitempty"`        // ID of the existing task to update or resolve
 	State              string          `json:"state"`               // "new", "update", "resolve", or "cancel"
@@ -195,7 +195,7 @@ type TranslateRequest struct {
 	OriginalText string    `json:"original_text"`
 }
 
-// TranslateResponse represents the batch translation response from Gemini
+// TranslateResponse represents the batch translation response from the LLM
 type TranslateResponse struct {
 	Translations []TranslateRequest `json:"translations"`
 }

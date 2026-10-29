@@ -6,23 +6,20 @@ import (
 )
 
 // ThinkingMode is a provider-neutral toggle for model "thinking"/reasoning.
-// Why: Gemini distinguishes three states — unset (model default), explicitly
-// disabled (budget 0), and enabled (budget > 0). Collapsing "unset" into
-// "disabled" changes extraction behavior on the Gemini fallback path, so
-// ThinkDefault preserves the "leave ThinkingConfig nil" semantics. DeepSeek
-// (via Ollama) maps this onto reasoning_effort — see reasoningEffort.
+// Why: "unset" (model default) is distinct from "explicitly disabled"; collapsing them
+// would change extraction behavior, so ThinkDefault leaves the provider default untouched.
+// DeepSeek (via Ollama) maps this onto reasoning_effort — see reasoningEffort.
 type ThinkingMode int
 
 const (
-	ThinkDefault ThinkingMode = iota // provider default (Gemini: no ThinkingConfig)
-	ThinkOff                         // explicitly disable (Gemini: ThinkingBudget 0)
-	ThinkOn                          // enable (Gemini: ThinkingBudget = geminiThinkingBudget)
+	ThinkDefault ThinkingMode = iota // provider default
+	ThinkOff                         // explicitly disable
+	ThinkOn                          // enable
 	ThinkHigh                        // maximum reasoning (Ollama: reasoning_effort "high")
 )
 
 // LLMRequest is the provider-neutral generation request shared by every AI step.
-// System/User mirror the OpenAI role split; geminiTransport maps System onto
-// SystemInstruction and User onto the content payload.
+// System/User mirror the OpenAI role split.
 type LLMRequest struct {
 	Model       string
 	System      string
@@ -32,14 +29,14 @@ type LLMRequest struct {
 	JSONMode    bool
 	Thinking    ThinkingMode
 	// Seed pins sampling where the provider supports it (Ollama's OpenAI-compatible API
-	// does; Gemini does not). Zero means unset. Why: the BLUF stage samples the same
+	// does). Zero means unset. Why: the BLUF stage samples the same
 	// prompt several times, so its regression harness needs one knob to make a run
 	// repeatable without collapsing the deliberate temperature spread.
 	Seed int
 }
 
-// LLMUsage normalizes token accounting across providers. ReasoningTokens maps
-// Gemini ThoughtsTokenCount / DeepSeek completion_tokens_details.reasoning_tokens.
+// LLMUsage normalizes token accounting. ReasoningTokens maps
+// DeepSeek completion_tokens_details.reasoning_tokens.
 // CachedTokens maps prompt-cache hits (DeepSeek prompt_tokens_details.cached_tokens);
 // captured but not yet persisted — see the token_usage cached_tokens follow-up.
 type LLMUsage struct {
@@ -50,8 +47,8 @@ type LLMUsage struct {
 }
 
 // LLMResponse is the provider-neutral generation result. FinishReason is
-// normalized to "" (normal) | "length" (output truncated — Gemini MAX_TOKENS /
-// OpenAI "length") so callers can trigger truncation repair provider-agnostically.
+// normalized to "" (normal) | "length" (output truncated, OpenAI "length")
+// so callers can trigger truncation repair provider-agnostically.
 type LLMResponse struct {
 	Text         string
 	FinishReason string
@@ -59,8 +56,8 @@ type LLMResponse struct {
 }
 
 // LLMTransport is the single provider seam: one method, implemented by
-// geminiTransport and deepseekTransport. All prompt building, response parsing
-// and token logging lives above it in AIClient so both providers share it.
+// deepseekTransport. All prompt building, response parsing and token logging
+// lives above it in AIClient.
 type LLMTransport interface {
 	Generate(ctx context.Context, req LLMRequest, timeout time.Duration, maxRetries int) (LLMResponse, error)
 }

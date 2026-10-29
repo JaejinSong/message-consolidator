@@ -54,7 +54,6 @@ BUILD_FE=false; BUILD_BE=false
 START_TIME=$(date +%s)
 BUILD_TAG=$(date +%Y%m%d%H%M%S)
 [ -f .env ] && { set -a; source .env; set +a; }
-export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 IMAGE_FE_TAG="${REGISTRY}/frontend:${BUILD_TAG}"
 IMAGE_BE_TAG="${REGISTRY}/backend:${BUILD_TAG}"
 

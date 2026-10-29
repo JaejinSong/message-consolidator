@@ -58,7 +58,7 @@ func (c *ChatAnalyzer) GetSystemInstruction(data ExtractionContext) string {
 func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
 	// Why: dynamic few-shots are selected per message, so rendering them in the user
 	// prompt (not the system prompt) keeps chat_system a byte-stable prefix for
-	// DeepSeek/Gemini prompt caching — input cache hits cost 1/50 of misses.
+	// DeepSeek prompt caching — input cache hits cost 1/50 of misses.
 	allShots := append(GetDefaultFewShots(), data.LearnedShots...)
 	// Why: bump 2->3 only when a learned shot is present, so a user-specific example
 	// can surface alongside both seed examples instead of evicting one.
@@ -75,7 +75,7 @@ func (c *ChatAnalyzer) GetUserPrompt(data ExtractionContext) string {
 func (c *ChatAnalyzer) SystemPrompt() PromptName { return PromptChatSystem }
 
 func (c *ChatAnalyzer) PreProcess(text string) string {
-	const maxChars = 30000 //Why: Truncates chat history to the last 30,000 characters to ensure the most recent context is sent to Gemini without exceeding token limits.
+	const maxChars = 30000 //Why: Truncates chat history to the last 30,000 characters to ensure the most recent context is sent to the model without exceeding token limits.
 	if len(text) > maxChars {
 		logger.Warnf("[GEMINI] Chat text too long (%d chars), truncating to last %d", len(text), maxChars)
 		return text[len(text)-maxChars:]

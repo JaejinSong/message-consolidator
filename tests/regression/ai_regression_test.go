@@ -38,8 +38,7 @@ var taskKeywords = map[string][]string{
 }
 
 // setupDeepSeekClientForTest builds a live DeepSeek AIClient for extraction-equivalence
-// runs. There is no VCR for DeepSeek (the dumps are Gemini-shaped), so this always hits the
-// real API; callers must gate on DEEPSEEK_API_KEY.
+// runs. There is no VCR, so this always hits the real API; callers must gate on DEEPSEEK_API_KEY.
 func setupDeepSeekClientForTest() (*ai.AIClient, error) {
 	key := strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
 	if key == "" {
@@ -52,8 +51,7 @@ func setupDeepSeekClientForTest() (*ai.AIClient, error) {
 }
 
 // TestAnalyze_Regression_DeepSeek replays the SAME golden fixtures and tolerant comparison
-// as the Gemini regression, but against the live DeepSeek provider — verifying extraction
-// equivalence (plan verification step 3). Skipped unless DEEPSEEK_API_KEY is set.
+// against the live DeepSeek provider — verifying extraction equivalence. Skipped unless DEEPSEEK_API_KEY is set.
 func TestAnalyze_Regression_DeepSeek(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")) == "" {
 		t.Skip("DEEPSEEK_API_KEY not set — skipping DeepSeek extraction equivalence")
@@ -129,7 +127,7 @@ func runRegressionWithClient(t *testing.T, client *ai.AIClient, path, testName s
 
 // reportExtraction runs a case against a (live) provider and enforces majority-vote strictness:
 // each case is analyzed up to 3 times and FAILS when the majority (2+) of runs diverge from the
-// Gemini-recorded golden on the same field — a single-run outlier no longer masks a real prompt
+// golden on the same field — a single-run outlier no longer masks a real prompt
 // regression, but normal model non-determinism (one odd run out of three) still passes. An
 // Analyze error or zero extraction on a task-present case always fails, in every run, regardless
 // of mode.
@@ -149,7 +147,7 @@ func reportExtraction(t *testing.T, client *ai.AIClient, path, testName string) 
 
 // reportExtractionLenient is the pre-majority-vote behavior: LOGS field-level divergences instead
 // of failing, since exact field/count parity across providers is not by itself a correctness
-// requirement (the goldens encode Gemini's output). Kept for local debugging via
+// requirement (the goldens were recorded from another model). Kept for local debugging via
 // AI_REGRESSION_LENIENT=1.
 func reportExtractionLenient(t *testing.T, client *ai.AIClient, path, testName string) {
 	expected, actual := analyzeCase(t, client, path, testName)
@@ -160,7 +158,7 @@ func reportExtractionLenient(t *testing.T, client *ai.AIClient, path, testName s
 	if pass, notes := matchResults(expected, actual); pass {
 		t.Logf("EQUIVALENT (%d task(s))", len(actual))
 	} else {
-		t.Logf("DIVERGENCE vs Gemini golden (cross-model nuance, not a plumbing bug):\n  %s", strings.Join(notes, "\n  "))
+		t.Logf("DIVERGENCE vs golden (cross-model nuance, not a plumbing bug):\n  %s", strings.Join(notes, "\n  "))
 	}
 }
 

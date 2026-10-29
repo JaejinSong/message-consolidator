@@ -56,7 +56,7 @@
 - Background TX 이름은 `/`로 시작 — `urlutil.NewURL`이 슬래시 없으면 Host로 파싱, Transaction 컬럼 빈 칸
 - `StartWithContext` 사용 금지 — 기존 trace ctx 없으면 silent skip. background는 `trace.Start`
 
-**Outbound HTTP wrapping** — OAuth2 (Gmail 등): `whataphttpx.WrapClient(<oauth2.NewClient(...)>)`. 그 외 (Slack/Gemini 등): `whataphttpx.Client()`. Gemini는 `&genai.ClientConfig{APIKey, HTTPClient: whataphttpx.Client()}`로 주입.
+**Outbound HTTP wrapping** — OAuth2 (Gmail 등): `whataphttpx.WrapClient(<oauth2.NewClient(...)>)`. 그 외 (Slack/DeepSeek 등): `whataphttpx.Client()`.
 
 ## TypeScript / CSS
 

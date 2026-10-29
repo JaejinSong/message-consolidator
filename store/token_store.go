@@ -357,7 +357,7 @@ func GetMonthlyTokenUsage(ctx context.Context, email string) (int, int, int, int
 }
 
 // ModelTokenUsage is per-(model, peak-window) token totals over a time window, used by the
-// cost dashboard to price each model at its own rate. Why: provider migration mixes Gemini
+// cost dashboard to price each model at its own rate. Why: provider migration left Gemini
 // and DeepSeek rows in token_usage; a single blended rate would mis-bill the mix. A model
 // used in both rate windows yields two entries, so peak tokens can carry the 2x multiplier.
 type ModelTokenUsage struct {

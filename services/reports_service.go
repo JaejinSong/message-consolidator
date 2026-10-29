@@ -23,11 +23,11 @@ type ReportConfig struct {
 	CutoffSize int
 }
 
-// Why: ~16K tokens at 4 chars/token — well within Gemini 3 Flash's 1M context; covers 250+ task
+// Why: ~16K tokens at 4 chars/token — well within the model's context window; covers 250+ task
 // heavy weeks after done-task evidence removal. Tunable via REPORT_CUTOFF_SIZE env var.
 const DefaultReportCutoffSize = 65000
 
-// Why: bound JIT translation latency so async report goroutines and slow Gemini calls
+// Why: bound JIT translation latency so async report goroutines and slow LLM calls
 // can't keep the request/parent context alive indefinitely. WithTimeout derives from
 // the caller's deadline, so a tighter parent deadline still wins.
 const defaultOnDemandTranslationTimeout = 30 * time.Second
@@ -35,7 +35,7 @@ const defaultOnDemandTranslationTimeout = 30 * time.Second
 // Log is a type alias for ConsolidatedMessage to satisfy technical requirements while maintaining consistency.
 type Log = store.ConsolidatedMessage
 
-// FlashSingleSummarizer implements ReportSummarizer using a single Gemini Flash model call.
+// FlashSingleSummarizer implements ReportSummarizer using a single LLM call.
 type FlashSingleSummarizer struct {
 	llm *ai.AIClient
 }
@@ -44,7 +44,7 @@ func NewFlashSingleSummarizer(llm *ai.AIClient) *FlashSingleSummarizer {
 	return &FlashSingleSummarizer{llm: llm}
 }
 
-// Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
+// Generate implements the ReportSummarizer interface by calling the LLM once for a single-pass summary.
 func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs, window string, reportID store.ReportID) (string, error) {
 	return s.llm.GenerateReportSummary(ctx, email, logs, window, reportID)
 }

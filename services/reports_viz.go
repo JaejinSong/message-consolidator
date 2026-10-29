@@ -33,7 +33,7 @@ type nodeMeta struct {
 
 func (s *ReportsService) getVisualizationJSON(ctx context.Context, email string, logs []Log) string {
 	// Why: Manual aggregation uses RequesterCanonical as node ID, correctly unifying all aliases resolved by sanitizeMessages.
-	// In-process aggregation only — no AI call here. The Gemini-backed GenerateVisualizationData
+	// In-process aggregation only — no AI call here. The LLM-backed GenerateVisualizationData
 	// has its own reportID parameter for the day it gets wired into this path.
 	vizData := s.generateVisualizationData(ctx, email, logs)
 	b, _ := json.Marshal(vizData)

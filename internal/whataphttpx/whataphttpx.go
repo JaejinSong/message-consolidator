@@ -1,5 +1,5 @@
 // Package whataphttpx centralises the WhaTap HTTP RoundTripper wiring so that
-// every outbound HTTP integration (Notion, Slack, Gmail, Gemini, ...) reports
+// every outbound HTTP integration (Notion, Slack, Gmail, DeepSeek, ...) reports
 // to WhaTap as an HTTPC step on the active transaction without each call site
 // re-importing the whataphttp package.
 //
@@ -17,7 +17,7 @@ import (
 )
 
 // Client returns a fresh *http.Client whose Transport reports to WhaTap.
-// Use for SDKs that accept a plain *http.Client (slack-go, Gemini, custom REST).
+// Use for SDKs that accept a plain *http.Client (slack-go, openai-go, custom REST).
 func Client() *http.Client {
 	return &http.Client{Transport: whataphttp.NewRoundTrip(context.Background(), nil)}
 }

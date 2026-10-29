@@ -65,7 +65,7 @@ func routedBySourceTS(routed []routedExtractedItem) map[string]store.Consolidate
 	return out
 }
 
-func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
+func TestProcessExtractedItems_NoDuplicateOnSkip(t *testing.T) {
 	t.Parallel()
 
 	user := store.User{Email: "test@example.com", Name: "Test User"}
@@ -98,7 +98,7 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 // Why: regression for the gmail source_ts contract violation — the model returned ISO
 // timestamps or empty strings instead of the [ID:...] literal, silently dropping 7/22
 // backlog items. A single-message batch is unambiguous, so the item must be recovered.
-func TestProcessGeminiItems_SingleMessageBatchRecoversSourceTS(t *testing.T) {
+func TestProcessExtractedItems_SingleMessageBatchRecoversSourceTS(t *testing.T) {
 	t.Parallel()
 
 	user := store.User{Email: "test@example.com", Name: "Test User"}
@@ -125,7 +125,7 @@ func TestProcessGeminiItems_SingleMessageBatchRecoversSourceTS(t *testing.T) {
 	}
 }
 
-func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
+func TestProcessExtractedItems_UsesServicesBuiltTask(t *testing.T) {
 	t.Parallel()
 
 	user := store.User{Email: "test@example.com", Name: "Tester"}
@@ -155,7 +155,7 @@ func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
 // guarded (post-ApplyExtractionGuard) item, silently reverting demotions such as an
 // ungrounded assignee. routeExtractedItems is the extracted dispatch loop processBatch
 // calls; a fake router lets us assert on the exact item it receives without a DB.
-func TestRouteGeminiItems_DispatchesGuardedItem(t *testing.T) {
+func TestRouteExtractedItems_DispatchesGuardedItem(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

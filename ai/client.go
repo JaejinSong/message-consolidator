@@ -21,8 +21,8 @@ const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
 	// ReportMaxTokens caps total response (thinking + output) for long-form reports.
-	// Why: Gemini 3 Flash is a thinking model — `max_output_tokens` budgets both internal
-	// reasoning AND visible completion. 8192 starved the visible output to ~300 tokens
+	// Why: with a thinking model the output cap budgets both internal reasoning AND visible
+	// completion (observed on Gemini 3 Flash). 8192 starved the visible output to ~300 tokens
 	// (thinking ate ~7800), truncating activity tables. 40960 leaves ~24K for thinking
 	// plus ~16K headroom for larger inputs. Don't drop without auditing thinking-token
 	// consumption, otherwise activity/insight sections silently truncate.

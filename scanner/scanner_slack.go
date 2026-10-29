@@ -319,7 +319,7 @@ func detachedDispatchCtx(ctx context.Context) (context.Context, context.CancelFu
 }
 
 // Why: When the user replies in their own thread we evaluate state (RESOLVE/UPDATE) on a
-// detached ctx (see detachedDispatchCtx) so Gemini latency doesn't block the scan loop,
+// detached ctx (see detachedDispatchCtx) so LLM latency doesn't block the scan loop,
 // while still carrying the scan's WhaTap trace instead of a bare context.Background().
 func dispatchOutgoingCompletionIfMine(ctx context.Context, sc *channels.SlackClient, u store.User, m types.RawMessage) {
 	if deps.completionSvc == nil {

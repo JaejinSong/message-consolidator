@@ -9,7 +9,6 @@ NC='\033[0m'
 
 # Load env and export for subshells
 [ -f .env ] && { set -a; source .env; set +a; }
-export GEMINI_API_KEY_FOR_TEST=${GEMINI_API_KEY_FOR_TEST:-$GEMINI_API_KEY}
 
 echo -e "${BLUE}==> Starting Simultaneous Test Execution...${NC}"
 

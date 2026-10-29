@@ -58,8 +58,8 @@ func (t *deepseekTransport) Generate(ctx context.Context, req LLMRequest, timeou
 	}
 	user := req.User
 	if user == "" {
-		// Why: a chat completion requires at least one non-empty message; mirror the
-		// geminiTransport placeholder so system-only prompts stay valid.
+		// Why: a chat completion requires at least one non-empty message; so
+		// system-only prompts stay valid.
 		user = "."
 	}
 	messages = append(messages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleUser, Content: user})

@@ -27,7 +27,7 @@ func NewTranslationService(llm *ai.AIClient) *TranslationService {
 	}
 }
 
-// Translate handles a single translation request using the Gemini AI client.
+// Translate handles a single translation request using the AI client.
 // reportID attributes report-translation cost when isReport=true; pass 0 for task-message translations.
 func (s *TranslationService) Translate(ctx context.Context, email string, deduplicationKey string, text string, targetLangCode string, isReport bool, reportID store.ReportID) (string, error) {
 	if s.llm == nil {
