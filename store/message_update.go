@@ -307,7 +307,11 @@ func closeParentIfAllSubtasksDone(ctx context.Context, q Querier, email string, 
 		logger.Warnf("[STORE] subtask auto-close parent %d: %v", id, err)
 		return false
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		logger.Warnf("[STORE] subtask auto-close parent %d rows affected: %v", id, err)
+		return true // Why: outcome unknown; treating it as closed invalidates both caches, the safe side.
+	}
 	return n > 0
 }
 
