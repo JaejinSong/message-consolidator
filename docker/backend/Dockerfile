@@ -5,7 +5,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# 2. Build and compress (Explicitly copy backend source)
+# 2. Build (Explicitly copy backend source; no strip/UPX so OBI can classify the binary as Go)
 COPY ai/ ./ai/
 COPY auth/ ./auth/
 COPY channels/ ./channels/
@@ -23,8 +23,7 @@ COPY main.go ./
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -o message-consolidator . && \
-    upx -1 message-consolidator
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o message-consolidator .
 
 # 3. Final staging preparation
 RUN mkdir -p /stage/app && mv message-consolidator /stage/app/
