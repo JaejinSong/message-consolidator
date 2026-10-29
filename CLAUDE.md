@@ -22,6 +22,7 @@
 ## Go Constraints
 
 - 린터가 강제하는 규칙(복잡도·중첩·에러 래핑·panic·ctx 전파·명명·WhaTap 우회 호출·TS `any`·CSS px/hex)은 [.golangci.yml](.golangci.yml) · [eslint.config.js](eslint.config.js) · [.stylelintrc.json](.stylelintrc.json)이 단일 출처이며 여기에 반복하지 않습니다. CI 필수 ([lint.yml](.github/workflows/lint.yml))
+- 훅이 강제하는 규칙(sqlc 산출물 `db/*.go` 수동 편집, `src/`·`static/` 신규 `.js`/`.jsx`)은 [.claude/hooks/guard-edit.sh](.claude/hooks/guard-edit.sh)가 단일 출처입니다. 훅 등록은 개인 `.claude/settings.json`의 `PreToolUse`
 - 라인 60 초과 시 분리 검토(의미 없는 분리는 금지). Guard Clauses (early return), `if-else` 체인 대신 `switch`/early return
 - ID는 Phantom Type (`type UserID int64`), 단순 `int64` 금지
 - `any`/`interface{}` 사용 시 사유 주석 필수
@@ -31,7 +32,6 @@
 
 ## DB (sqlc)
 
-- **`db/*.sql.go`는 sqlc 자동 생성 — 직접 수정 금지**
 - 흐름: `store/queries/*.sql` 편집 → `sqlc generate` → `db/*.sql.go` 갱신
 - 쿼리는 sqlc 우선, raw SQL은 동적 IN절 등 정적 분석 불가 케이스에 한정
 - `sqlc generate` 후 의도치 않게 변경된 파일은 `git checkout <file>` 원복
@@ -60,7 +60,6 @@
 
 ## TypeScript / CSS
 
-- UI 전부 TypeScript (`.ts`/`.tsx`). `.js` 발견 시 즉시 `.ts` 전환
 - 불가피한 타입 우회는 `unknown` + type guard. CSS 값은 `rem` 또는 `variables.css` 토큰, BEM (`block__element--modifier`)
 
 ## Serena

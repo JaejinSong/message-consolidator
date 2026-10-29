@@ -48,4 +48,5 @@ tests/regression/testdata/*_vcr.dump
 testsprite_tests/
 
 # === Claude ===
-.claude/
+.claude/*
+!.claude/hooks/
