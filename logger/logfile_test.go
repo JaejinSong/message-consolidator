@@ -61,6 +61,22 @@ func TestInitLogging_ExistingPrivateFilesBecomeWorldReadable(t *testing.T) {
 	}
 }
 
+// Why: lumberjack compresses a rotated backup asynchronously; waiting for it keeps TempDir cleanup from racing the compressor.
+func waitForCompressedBackup(t *testing.T, dir string) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		gz, _ := filepath.Glob(filepath.Join(dir, "app-*.log.gz"))
+		raw, _ := filepath.Glob(filepath.Join(dir, "app-*.log"))
+		if len(gz) == 1 && len(raw) == 0 {
+			return gz[0]
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("compressed backup did not appear")
+	return ""
+}
+
 func TestInitLogging_RotatedActiveFileStaysWorldReadable(t *testing.T) {
 	dir := t.TempDir()
 	useLogDir(t, dir)
@@ -78,21 +94,9 @@ func TestInitLogging_RotatedActiveFileStaysWorldReadable(t *testing.T) {
 	if got := modeOf(t, filepath.Join(dir, "app.log")); got != 0644 {
 		t.Errorf("app.log mode after rotate = %o, want 644", got)
 	}
-
-	// Why: lumberjack compresses the backup asynchronously; wait so TempDir cleanup does not race it.
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		gz, _ := filepath.Glob(filepath.Join(dir, "app-*.log.gz"))
-		raw, _ := filepath.Glob(filepath.Join(dir, "app-*.log"))
-		if len(gz) == 1 && len(raw) == 0 {
-			if got := modeOf(t, gz[0]); got != 0644 {
-				t.Errorf("compressed backup mode = %o, want 644", got)
-			}
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+	if got := modeOf(t, waitForCompressedBackup(t, dir)); got != 0644 {
+		t.Errorf("compressed backup mode = %o, want 644", got)
 	}
-	t.Error("compressed backup did not appear")
 }
 
 func TestRotateReadable_RecreatesDeletedFileWorldReadable(t *testing.T) {
@@ -113,4 +117,6 @@ func TestRotateReadable_RecreatesDeletedFileWorldReadable(t *testing.T) {
 	if got := modeOf(t, path); got != 0644 {
 		t.Errorf("app.log mode = %o, want 644", got)
 	}
+	// Why: the recreated file is rotated into a backup that lumberjack compresses in the background.
+	waitForCompressedBackup(t, dir)
 }
