@@ -138,8 +138,36 @@
   padding: 0 var(--spacing-lg);
 }
 
-.c-guide__toc-item {
+.c-guide__toc ul {
+  list-style: none;
   margin: 0;
+  padding: 0;
+}
+
+.c-guide__toc a {
+  display: block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  color: var(--text-dim);
+  text-decoration: none;
+  border-left: 0.125rem solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.c-guide__toc a:hover {
+  color: var(--text-main);
+}
+
+.c-guide__toc-item--sub a {
+  padding-left: var(--spacing-lg);
+  font-size: 0.78rem;
+}
+
+.c-guide__toc a.c-guide__toc-item--active {
+  color: var(--color-primary);
+  border-left-color: var(--color-primary);
+  background: rgba(var(--color-primary-rgb), 0.06);
 }
 
 /* ---------- Content typography ---------- */
