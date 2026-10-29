@@ -13,6 +13,6 @@ type FilterInput struct {
 }
 
 // Why: the legacy LLM filter ignores Room/SourceTS/MessageRef; this adapter keeps its logic untouched.
-func (f *GeminiLiteFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error) {
+func (f *LiteFilter) IsNoise(ctx context.Context, in FilterInput) (bool, error) {
 	return f.isNoiseText(ctx, in.Email, in.Source, in.Text)
 }

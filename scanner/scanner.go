@@ -41,7 +41,7 @@ type noiseFilter interface {
 // Why: one injection point (set once in Init, before StartBackgroundScanner)
 // instead of scattered package globals, so tests swap deps fields in isolation.
 type scanDeps struct {
-	gClient         *ai.GeminiClient
+	gClient         *ai.AIClient
 	completionSvc   *services.CompletionService
 	tasksSvc        *services.TasksService
 	filterSvc       noiseFilter

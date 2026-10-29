@@ -37,30 +37,30 @@ type Log = store.ConsolidatedMessage
 
 // FlashSingleSummarizer implements ReportSummarizer using a single Gemini Flash model call.
 type FlashSingleSummarizer struct {
-	gemini *ai.GeminiClient
+	llm *ai.AIClient
 }
 
-func NewFlashSingleSummarizer(gemini *ai.GeminiClient) *FlashSingleSummarizer {
-	return &FlashSingleSummarizer{gemini: gemini}
+func NewFlashSingleSummarizer(llm *ai.AIClient) *FlashSingleSummarizer {
+	return &FlashSingleSummarizer{llm: llm}
 }
 
 // Generate implements the ReportSummarizer interface by calling the Gemini API for a single-pass summary.
 func (s *FlashSingleSummarizer) Generate(ctx context.Context, email, logs, window string, reportID store.ReportID) (string, error) {
-	return s.gemini.GenerateReportSummary(ctx, email, logs, window, reportID)
+	return s.llm.GenerateReportSummary(ctx, email, logs, window, reportID)
 }
 
 type ReportsService struct {
 	summarizer     ReportSummarizer
-	geminiClient   *ai.GeminiClient
+	aiClient       *ai.AIClient
 	translationSvc *TranslationService
 	config         ReportConfig
 	isTest         bool
 }
 
-func NewReportsService(summarizer ReportSummarizer, geminiClient *ai.GeminiClient, trans *TranslationService, config ReportConfig) *ReportsService {
+func NewReportsService(summarizer ReportSummarizer, aiClient *ai.AIClient, trans *TranslationService, config ReportConfig) *ReportsService {
 	return &ReportsService{
 		summarizer:     summarizer,
-		geminiClient:   geminiClient,
+		aiClient:       aiClient,
 		translationSvc: trans,
 		config:         config,
 	}
@@ -246,7 +246,7 @@ func (s *ReportsService) processAsyncReport(email, start, end, lang string, id s
 // BLUF rule against the ranked shortlist that buildBLUFCandidateLine already put in the Stats
 // block, so a BLUF-stage outage degrades the line's quality but never blocks the report.
 func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window string, id store.ReportID, activity, backlog []Log, payload string) string {
-	if s.geminiClient == nil {
+	if s.aiClient == nil {
 		return payload
 	}
 	dossiers := buildBLUFDossiers(activity, backlog, email, time.Now())
@@ -254,7 +254,7 @@ func (s *ReportsService) withDecidedBLUF(ctx context.Context, email, window stri
 	if rendered == "" {
 		return payload
 	}
-	res, err := s.geminiClient.SelectBLUF(ctx, email, rendered, window, id)
+	res, err := s.aiClient.SelectBLUF(ctx, email, rendered, window, id)
 	if err != nil {
 		logger.Warnf("[REPORTS] BLUF stage unavailable for report %d, falling back to the in-prompt rule: %v", id, err)
 		return payload

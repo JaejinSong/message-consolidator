@@ -15,14 +15,14 @@ import (
 
 // TranslationService centralizes AI-powered translation logic and ensures deduplication via singleflight.
 type TranslationService struct {
-	gemini       *ai.GeminiClient
+	llm          *ai.AIClient
 	requestGroup singleflight.Group
 	semaphore    chan struct{}
 }
 
-func NewTranslationService(gemini *ai.GeminiClient) *TranslationService {
+func NewTranslationService(llm *ai.AIClient) *TranslationService {
 	return &TranslationService{
-		gemini:    gemini,
+		llm:       llm,
 		semaphore: make(chan struct{}, 5),
 	}
 }
@@ -30,7 +30,7 @@ func NewTranslationService(gemini *ai.GeminiClient) *TranslationService {
 // Translate handles a single translation request using the Gemini AI client.
 // reportID attributes report-translation cost when isReport=true; pass 0 for task-message translations.
 func (s *TranslationService) Translate(ctx context.Context, email string, deduplicationKey string, text string, targetLangCode string, isReport bool, reportID store.ReportID) (string, error) {
-	if s.gemini == nil {
+	if s.llm == nil {
 		return "", fmt.Errorf("AI service not initialized")
 	}
 
@@ -42,9 +42,9 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 
 		targetLangName := GetLanguageName(targetLangCode)
 		if isReport {
-			return s.gemini.TranslateReport(ctx, email, text, targetLangName, reportID)
+			return s.llm.TranslateReport(ctx, email, text, targetLangName, reportID)
 		}
-		return s.gemini.TranslateTaskMessage(ctx, email, text, targetLangName)
+		return s.llm.TranslateTaskMessage(ctx, email, text, targetLangName)
 	})
 
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *TranslationService) Translate(ctx context.Context, email string, dedupl
 // TranslateBatch handles multiple tasks in a single AI call with semaphore protection.
 // Why: Minimizes AI calls and costs by batching N tasks into a single structured prompt.
 func (s *TranslationService) TranslateBatch(ctx context.Context, email string, tasks []store.TranslateRequest, lang string) ([]ai.TranslationResult, error) {
-	if s.gemini == nil || len(tasks) == 0 {
+	if s.llm == nil || len(tasks) == 0 {
 		return nil, nil
 	}
 
@@ -71,7 +71,7 @@ func (s *TranslationService) TranslateBatch(ctx context.Context, email string, t
 	val, err, _ := s.requestGroup.Do(key, func() (any, error) {
 		s.semaphore <- struct{}{}
 		defer func() { <-s.semaphore }()
-		return s.gemini.TranslateTasksBatch(ctx, email, tasks, GetLanguageName(lang))
+		return s.llm.TranslateTasksBatch(ctx, email, tasks, GetLanguageName(lang))
 	})
 
 	// Why: translateInChunks returns (partial, err) when a later chunk fails. Surface partial

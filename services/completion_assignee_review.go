@@ -26,7 +26,7 @@ func (s *CompletionService) ReviewFoldedAssignee(ctx context.Context, msg store.
 		return false, nil
 	}
 
-	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, parent.Task, parent.Assignee, msg.OriginalText, parent.Subtasks)
+	res, err := s.llm.EvaluateTaskTransition(ctx, msg.UserEmail, parent.Task, parent.Assignee, msg.OriginalText, parent.Subtasks)
 	if err != nil {
 		return false, fmt.Errorf("folded assignee review failed: %w", err)
 	}

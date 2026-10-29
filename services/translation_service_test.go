@@ -36,11 +36,11 @@ func TestNewTranslationService_Defaults(t *testing.T) {
 	}
 }
 
-func TestTranslate_NilGeminiReturnsError(t *testing.T) {
+func TestTranslate_NilClientReturnsError(t *testing.T) {
 	t.Parallel()
 	s := NewTranslationService(nil)
 	if _, err := s.Translate(context.Background(), "u@x.com", "k", "text", "ko", false, 0); err == nil {
-		t.Error("expected error when gemini client is nil")
+		t.Error("expected error when llm client is nil")
 	}
 }
 
@@ -49,7 +49,7 @@ func TestTranslateBatch_NoTasksReturnsNil(t *testing.T) {
 	s := NewTranslationService(nil)
 	got, err := s.TranslateBatch(context.Background(), "u@x.com", nil, "ko")
 	if err != nil {
-		t.Errorf("nil gemini + empty tasks should not error, got %v", err)
+		t.Errorf("nil llm + empty tasks should not error, got %v", err)
 	}
 	if got != nil {
 		t.Errorf("got %v, want nil", got)

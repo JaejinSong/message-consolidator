@@ -58,7 +58,7 @@ func newNoiseFilter(c *config.Config, gc *ai.AIClient) noiseFilter {
 		logger.Errorf("[SCAN] clef filter init failed, falling back to LLM filter: %v", err)
 	}
 	logger.Infof("[SCAN] noise filter: llm")
-	return ai.NewGeminiLiteFilter(gc)
+	return ai.NewLiteFilter(gc)
 }
 
 // Why: DailyDigestService needs reportsSvc, built post-Init in main.initAIServices.

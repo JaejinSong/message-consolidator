@@ -149,7 +149,7 @@ func aiProviderConfig(cfg *config.Config) ai.ProviderConfig {
 // Why: Boots AI-backed services lazily; falls back to AI-less TasksService when no
 // API key is configured.
 func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver, *services.FilterReviewService) {
-	var gClient *ai.GeminiClient
+	var gClient *ai.AIClient
 	if pc := aiProviderConfig(cfg); pc.Enabled() {
 		var err error
 		// Why: the transport takes ctx only per request via http.Request, not at construction.

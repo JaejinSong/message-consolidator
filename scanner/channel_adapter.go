@@ -245,7 +245,7 @@ func dispatchCrossChannelCompletions(asyncCtx context.Context, msgs []types.RawM
 	}(user.Email, adapter.Source(), groupName, msgs)
 }
 
-func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.GeminiClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
+func processChannelGroup(ctx context.Context, user store.User, aliases []string, roomKey, groupName string, group []types.RawMessage, gc *ai.AIClient, language string, wg *sync.WaitGroup, adapter ChannelAdapter) []store.MessageID {
 	if len(group) == 0 {
 		return nil
 	}

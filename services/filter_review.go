@@ -59,7 +59,7 @@ type RescueResult struct {
 }
 
 func NewFilterReviewService(analyzer ReviewAnalyzer) *FilterReviewService {
-	// Why: a nil *GeminiClient boxed into the interface is non-nil, so callers pass an untyped nil.
+	// Why: a nil *AIClient boxed into the interface is non-nil, so callers pass an untyped nil.
 	return &FilterReviewService{analyzer: analyzer, route: HandleTaskState, loadUser: loadRescueUser}
 }
 

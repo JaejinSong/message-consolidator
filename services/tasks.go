@@ -34,13 +34,13 @@ type TaskAI interface {
 
 type TasksService struct {
 	translationSvc *TranslationService
-	geminiClient   TaskAI
+	aiClient       TaskAI
 }
 
-func NewTasksService(trans *TranslationService, gemini TaskAI) *TasksService {
+func NewTasksService(trans *TranslationService, llm TaskAI) *TasksService {
 	return &TasksService{
 		translationSvc: trans,
-		geminiClient:   gemini,
+		aiClient:       llm,
 	}
 }
 

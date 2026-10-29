@@ -556,7 +556,7 @@ func TestReportsService_GenerateReport_MultiLanguage(t *testing.T) {
 		t.Fatalf("Failed to seed message: %v", err)
 	}
 
-	// Since we can't easily mock the internal GeminiClient.TranslateReport call without a real object,
+	// Since we can't easily mock the internal AIClient.TranslateReport call without a real object,
 	report, err := svc.GenerateReport(context.Background(), tenantEmail, startDate, endDate, "en", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateReport failed: %v", err)
@@ -805,7 +805,7 @@ func TestReportsService_GenerateReport_OnlyRequestedLanguage(t *testing.T) {
 		t.Fatalf("GenerateReport failed: %v", err)
 	}
 
-	// 💡 Logic Correction: Since TranslationService.Translate (with nil gemini)
+	// 💡 Logic Correction: Since TranslationService.Translate (with nil llm)
 	// returns report.Summary as-is, and processAsyncReport already saves "en",
 	// we just need to verify that 'ko' was saved via ProcessOnDemandTranslation (which is called sync in isTest).
 	report.Translations, _ = store.GetReportTranslations(ctx, report.ID)

@@ -48,7 +48,7 @@ func (s *TasksService) generateSummaryTitle(ctx context.Context, email string, d
 	}
 
 	data, _ := json.Marshal(inputs)
-	title, err := s.geminiClient.GenerateMergedTaskTitle(ctx, email, string(data))
+	title, err := s.aiClient.GenerateMergedTaskTitle(ctx, email, string(data))
 	// Why: TrimSpace guard rejects whitespace-only AI output that would otherwise
 	// pass `title != ""` and silently wipe the destination task title.
 	if err == nil && strings.TrimSpace(title) != "" {

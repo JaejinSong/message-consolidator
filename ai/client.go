@@ -81,10 +81,6 @@ type AIClient struct {
 	identity   modelSpec
 }
 
-// GeminiClient is the legacy name retained as an alias so existing call sites
-// compile unchanged; it is renamed away in a follow-up.
-type GeminiClient = AIClient
-
 // ProviderConfig carries the settings needed to construct an AIClient; main.go and
 // scanner build it from the application Config.
 type ProviderConfig struct {

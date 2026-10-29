@@ -15,7 +15,7 @@ func (m *MockAIFail) GenerateMergedTaskTitle(ctx context.Context, email string, 
 
 func TestGenerateSummaryTitle_Fallback(t *testing.T) {
 	s := &TasksService{
-		geminiClient: &MockAIFail{},
+		aiClient: &MockAIFail{},
 	}
 
 	dest := &store.ConsolidatedMessage{Task: "Task A", OriginalText: "Text A"}
@@ -43,7 +43,7 @@ func (m *MockAIBlank) GenerateMergedTaskTitle(ctx context.Context, email string,
 // Regression: AI returns "" with no error → must not collapse to empty title.
 // Reproduces the path that wiped row 11657.task during a 2-step merge sequence.
 func TestGenerateSummaryTitle_AIReturnsEmpty_FallsBack(t *testing.T) {
-	s := &TasksService{geminiClient: &MockAIBlank{payload: ""}}
+	s := &TasksService{aiClient: &MockAIBlank{payload: ""}}
 
 	dest := &store.ConsolidatedMessage{Task: "Review", OriginalText: "X"}
 	sources := []store.ConsolidatedMessage{
@@ -61,7 +61,7 @@ func TestGenerateSummaryTitle_AIReturnsEmpty_FallsBack(t *testing.T) {
 // Regression: AI returns whitespace-only ("   ", "\n") — must be rejected too.
 func TestGenerateSummaryTitle_AIReturnsWhitespace_FallsBack(t *testing.T) {
 	for _, payload := range []string{"   ", "\n", "\t\t", " \n "} {
-		s := &TasksService{geminiClient: &MockAIBlank{payload: payload}}
+		s := &TasksService{aiClient: &MockAIBlank{payload: payload}}
 		dest := &store.ConsolidatedMessage{Task: "Review"}
 		sources := []store.ConsolidatedMessage{{Task: "Discuss POC"}}
 
@@ -75,7 +75,7 @@ func TestGenerateSummaryTitle_AIReturnsWhitespace_FallsBack(t *testing.T) {
 // All inputs blank → returns dest.Task verbatim (preserves whatever was there
 // rather than producing "" or " | "). The store-layer guard then rejects.
 func TestGenerateSummaryTitle_AllBlankSources_PreservesDest(t *testing.T) {
-	s := &TasksService{geminiClient: &MockAIFail{}}
+	s := &TasksService{aiClient: &MockAIFail{}}
 	dest := &store.ConsolidatedMessage{Task: "Original Title"}
 	sources := []store.ConsolidatedMessage{{Task: ""}, {Task: "  "}}
 

@@ -8,21 +8,21 @@ import (
 	"strings"
 )
 
-// GeminiLiteFilter handles high-speed noise filtering using the configured filter model.
+// LiteFilter handles high-speed noise filtering using the configured filter model.
 // This service offloads simple noise (greetings, system alerts) from the main extraction pipeline.
-type GeminiLiteFilter struct {
+type LiteFilter struct {
 	client *AIClient
 }
 
-func NewGeminiLiteFilter(client *AIClient) *GeminiLiteFilter {
-	return &GeminiLiteFilter{client: client}
+func NewLiteFilter(client *AIClient) *LiteFilter {
+	return &LiteFilter{client: client}
 }
 
 // isNoiseText determines if a message is irrelevant/noise and should be skipped for extraction.
 // Returns true if the message is noise, false if it contains actionable context.
 // Why: [Performance] Filter logic is non-blocking and uses a cheaper model to save costs.
 // `source` (slack|whatsapp|telegram|gmail|...) attributes the token cost to the right bucket.
-func (f *GeminiLiteFilter) isNoiseText(ctx context.Context, email, source, text string) (bool, error) {
+func (f *LiteFilter) isNoiseText(ctx context.Context, email, source, text string) (bool, error) {
 	data := core.ExtractionContext{
 		MessagePayload: text,
 		CurrentUser:    email,

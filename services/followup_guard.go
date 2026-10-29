@@ -27,7 +27,7 @@ const (
 // Why: dedupe compares against active tasks only, so an automated reminder in a fresh thread
 // resurrected a closed request (task 13477 -> 13504). Fails open: any doubt or AI error creates the task.
 func (s *CompletionService) IsReminderOfDone(ctx context.Context, item store.TodoItem, msg store.ConsolidatedMessage) bool {
-	if item.State != "new" || s.gemini == nil || s.hasOpenThreadTask(ctx, msg) {
+	if item.State != "new" || s.llm == nil || s.hasOpenThreadTask(ctx, msg) {
 		return false
 	}
 	requester := followupRequester(ctx, item, msg)
@@ -45,7 +45,7 @@ func (s *CompletionService) IsReminderOfDone(ctx context.Context, item store.Tod
 	if done.CompletedAt != nil {
 		closedOn = done.CompletedAt.Format("2006-01-02")
 	}
-	verdict, err := s.gemini.EvaluateFollowup(aiCtx, msg.UserEmail, done.Task, closedOn, truncateRunes(msg.OriginalText, followupMaxTextRunes))
+	verdict, err := s.llm.EvaluateFollowup(aiCtx, msg.UserEmail, done.Task, closedOn, truncateRunes(msg.OriginalText, followupMaxTextRunes))
 	if err != nil {
 		logger.Warnf("[COMPLETION] followup check failed doneID=%d, creating task: %v", done.ID, err)
 		return false

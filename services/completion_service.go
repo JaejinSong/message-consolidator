@@ -70,14 +70,14 @@ func (d *DefaultTaskStore) SearchOpenTasksFTS(ctx context.Context, email string,
 }
 
 type CompletionService struct {
-	gemini   AICompleter
+	llm      AICompleter
 	store    TaskStore
 	tasksSvc *TasksService
 	db       *sql.DB
 }
 
-func NewCompletionService(gemini AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
-	return &CompletionService{gemini: gemini, store: taskStore, tasksSvc: tasksSvc, db: db}
+func NewCompletionService(llm AICompleter, taskStore TaskStore, tasksSvc *TasksService, db *sql.DB) *CompletionService {
+	return &CompletionService{llm: llm, store: taskStore, tasksSvc: tasksSvc, db: db}
 }
 
 // ProcessCrossChannelSignal evaluates a plain chat message against open tasks in
@@ -177,7 +177,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 		// Single-task: fall through to the shared single-call path below.
 	}
 
-	res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, tasks[0].Assignee, msg.OriginalText, tasks[0].Subtasks)
+	res, err := s.llm.EvaluateTaskTransition(ctx, msg.UserEmail, tasks[0].Task, tasks[0].Assignee, msg.OriginalText, tasks[0].Subtasks)
 	if err != nil {
 		return false, fmt.Errorf("transition analysis failed: %w", err)
 	}
@@ -195,7 +195,7 @@ func (s *CompletionService) ProcessPotentialCompletion(ctx context.Context, msg 
 func (s *CompletionService) EvaluateThreadReply(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
 	handled := false
 	for _, task := range tasks {
-		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
+		res, err := s.llm.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
 		if err != nil {
 			return handled, fmt.Errorf("thread reply transition failed: %w", err)
 		}
@@ -228,7 +228,7 @@ func (s *CompletionService) applyThreadReplyOutcome(ctx context.Context, res ai.
 func (s *CompletionService) evaluatePerTask(ctx context.Context, msg store.ConsolidatedMessage, tasks []store.ConsolidatedMessage) (bool, error) {
 	handled := false
 	for _, task := range tasks {
-		res, err := s.gemini.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
+		res, err := s.llm.EvaluateTaskTransition(ctx, msg.UserEmail, task.Task, task.Assignee, msg.OriginalText, task.Subtasks)
 		if err != nil {
 			return false, fmt.Errorf("transition analysis failed: %w", err)
 		}
@@ -325,7 +325,7 @@ func (s *CompletionService) fallbackToNewExtraction(ctx context.Context, msg sto
 	if room == "" {
 		room = "General"
 	}
-	items, err := s.gemini.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, room)
+	items, err := s.llm.Analyze(ctx, msg.UserEmail, enriched, "Korean", msg.Source, room)
 	if err != nil || len(items) == 0 {
 		return false
 	}

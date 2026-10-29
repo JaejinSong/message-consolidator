@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
+func TestProcessExtractedItems_SourceTSAlignment(t *testing.T) {
 	t.Parallel()
 
 	user := store.User{Email: "test@example.com", Name: "Test User"}
@@ -33,7 +33,7 @@ func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
 		{Task: "Task C", SourceTS: "ts-C", Category: "TASK"},
 	}
 
-	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, classificationMap, toMap, msgMap)
+	result := processExtractedItems(t.Context(), user.Email, &user, nil, items, classificationMap, toMap, msgMap)
 	bySourceTS := routedBySourceTS(result)
 
 	if _, ok := bySourceTS["ts-A"]; ok {
@@ -55,9 +55,9 @@ func TestProcessGeminiItems_SourceTSAlignment(t *testing.T) {
 	}
 }
 
-// routedBySourceTS re-keys processGeminiItems' ordered result by the (post-recovery)
+// routedBySourceTS re-keys processExtractedItems' ordered result by the (post-recovery)
 // item SourceTS so existing map-lookup-style assertions still read naturally.
-func routedBySourceTS(routed []routedGeminiItem) map[string]store.ConsolidatedMessage {
+func routedBySourceTS(routed []routedExtractedItem) map[string]store.ConsolidatedMessage {
 	out := make(map[string]store.ConsolidatedMessage, len(routed))
 	for _, r := range routed {
 		out[r.Item.SourceTS] = r.Msg
@@ -84,7 +84,7 @@ func TestProcessGeminiItems_NoDuplicateOnSkip(t *testing.T) {
 		{Task: "Real Task", SourceTS: "ts-1", Category: "TASK"},
 	}
 
-	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
+	result := processExtractedItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
 	bySourceTS := routedBySourceTS(result)
 
 	if len(result) != 1 {
@@ -109,7 +109,7 @@ func TestProcessGeminiItems_SingleMessageBatchRecoversSourceTS(t *testing.T) {
 	for _, badTS := range []string{"2026-07-23T02:31:13Z", ""} {
 		items := []store.TodoItem{{Task: "Prepare deck", SourceTS: badTS, Category: "TASK"}}
 
-		result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
+		result := processExtractedItems(t.Context(), user.Email, &user, nil, items, map[string]string{}, map[string]string{}, msgMap)
 		bySourceTS := routedBySourceTS(result)
 
 		msg, ok := bySourceTS["196f3a2b8c4d5e01"]
@@ -136,7 +136,7 @@ func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
 	}
 	items := []store.TodoItem{{Task: "Do something", SourceTS: "ts-x", Category: "QUERY"}}
 
-	result := processGeminiItems(t.Context(), user.Email, &user, nil, items, map[string]string{"ts-x": CategoryMine}, map[string]string{}, msgMap)
+	result := processExtractedItems(t.Context(), user.Email, &user, nil, items, map[string]string{"ts-x": CategoryMine}, map[string]string{}, msgMap)
 	bySourceTS := routedBySourceTS(result)
 
 	msg, ok := bySourceTS["ts-x"]
@@ -153,7 +153,7 @@ func TestProcessGeminiItems_UsesServicesBuiltTask(t *testing.T) {
 
 // Why: regression for B2 — processBatch used to route the raw AI item instead of the
 // guarded (post-ApplyExtractionGuard) item, silently reverting demotions such as an
-// ungrounded assignee. routeGeminiItems is the extracted dispatch loop processBatch
+// ungrounded assignee. routeExtractedItems is the extracted dispatch loop processBatch
 // calls; a fake router lets us assert on the exact item it receives without a DB.
 func TestRouteGeminiItems_DispatchesGuardedItem(t *testing.T) {
 	t.Parallel()
@@ -198,7 +198,7 @@ func TestRouteGeminiItems_DispatchesGuardedItem(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			user := store.User{Email: "test@example.com", Name: "Test User"}
-			routed := processGeminiItems(t.Context(), user.Email, &user, nil, tt.items, map[string]string{}, map[string]string{}, tt.msgMap)
+			routed := processExtractedItems(t.Context(), user.Email, &user, nil, tt.items, map[string]string{}, map[string]string{}, tt.msgMap)
 
 			var routeCalled bool
 			var gotItem store.TodoItem
@@ -208,7 +208,7 @@ func TestRouteGeminiItems_DispatchesGuardedItem(t *testing.T) {
 				return store.MessageID(1), nil
 			}
 
-			ids := routeGeminiItems(t.Context(), user.Email, routed, fakeRoute)
+			ids := routeExtractedItems(t.Context(), user.Email, routed, fakeRoute)
 
 			if routeCalled != tt.wantRouteCall {
 				t.Fatalf("route called = %v, want %v", routeCalled, tt.wantRouteCall)
