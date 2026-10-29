@@ -371,7 +371,7 @@ SELECT model, SUM(prompt_tokens) ... GROUP BY model;  -- GetTokenUsageByModel
 
 ### 6-3. 인메모리 버퍼 + 종료 시 플러시
 
-토큰 사용량은 매 AI 호출 후 DB에 직접 쓰지 않고 인메모리에 누적됩니다. `gracefulShutdown`에서 `store.FlushTokenUsage(ctx)`로 일괄 flush합니다. 비정상 종료 시 마지막 배치가 유실될 수 있습니다 (허용된 트레이드오프).
+토큰 사용량은 매 AI 호출 후 DB에 직접 쓰지 않고 인메모리에 누적됩니다. `runShutdown`의 `flushInMemoryData`가 `store.FlushTokenUsage(ctx)`로 일괄 flush합니다. 비정상 종료 시 마지막 배치가 유실될 수 있습니다 (허용된 트레이드오프).
 
 → AI 추론 로그 보존 정책 논의: [07-ai-filter-pipeline.md](07-ai-filter-pipeline.md)
 

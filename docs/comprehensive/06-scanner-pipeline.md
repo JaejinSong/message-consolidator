@@ -58,9 +58,10 @@ sequenceDiagram
         PL->>PL: CAS running true→false
         PL->>PL: timer.Reset(pickPrime())
     end
-    M->>S: ctx.Done()
+    M->>S: cancel() → ctx.Done()
     S->>PL: ctx cancelled → goroutine returns
-    S->>S: wg.Wait() with 30s timeout
+    S->>S: wg.Wait() → close(done)
+    M->>S: <-done (runShutdown, 공유 예산 31s)
 ```
 
 **한 iteration의 단계 (WhatsApp/Telegram 예시):**
@@ -334,7 +335,7 @@ DO UPDATE SET last_ts = EXCLUDED.last_ts;
 
 **Flush 타이밍**: `PersistAllScanMetadata`는 각 채널 스캔 완료 직후 호출됩니다. 프로세스 비정상 종료 시 마지막 flush 이전 메시지는 재처리되지만, upsert 시맨틱과 `inFlightMessages` 가드로 실제 중복 저장은 방지됩니다.
 
-**Graceful shutdown**: `StartBackgroundScanner`는 `ctx.Done()` 수신 후 `wg.Wait()`를 최대 30초 대기합니다. 이 window 안에 in-flight AI 호출(15–20초)과 `PersistAllScanMetadata`가 완료됩니다.
+**Graceful shutdown**: `StartBackgroundScanner`는 비차단이며 `ctx.Done()` 이후 `wg.Wait()`가 끝나면 닫히는 `<-chan struct{}`를 반환합니다. 대기 한도는 `main`의 `runShutdown`이 소유하며(HTTP drain과 공유하는 31초 예산), 이 window 안에 in-flight AI 호출(15–20초)과 `PersistAllScanMetadata`가 완료됩니다. 예산이 만료되면 경고 후 종료가 계속됩니다. `wg` 밖의 detached goroutine은 대기 대상이 아닙니다([REVIEW.md](../../REVIEW.md) R3).
 
 ---
 

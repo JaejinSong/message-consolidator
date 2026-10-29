@@ -246,105 +246,86 @@ traceName: "/Background-FlushTokenUsage"
 ```mermaid
 sequenceDiagram
     participant OS as OS (SIGTERM / SIGINT)
-    participant main as main()
+    participant main as main() / runShutdown
     participant cancel as root ctx cancel()
-    participant ch as channels
-    participant st as store
     participant scanner as scanner loops
     participant srv as http.Server
+    participant ch as channels
+    participant st as store
     participant db as DB conn
     participant whatap as trace.Shutdown()
 
     OS->>main: signal
-    main->>cancel: cancel() — root ctx 취소
-    note over scanner: ctx.Done() 수신 → loop goroutine 자연 종료
+    note over main: shutdownBudget (31s) 시작 — drain과 scanner 대기가 공유
 
-    par Step 1 (goroutine)
+    main->>cancel: Step 1: cancel() — root ctx 취소
+    note over scanner: ctx.Done() 수신 → loop 종료, done 채널 close
+    main->>srv: Step 2: drainHTTP(budget) — srv.Shutdown
+    note over srv: ctx 기반 핸들러는 취소되어 함께 정리. 실패 시 srv.Close()
+    main->>scanner: Step 3: backgroundDone 대기 (같은 budget)
+    note over main: 예산 만료 시 Warn 후 계속 진행
+
+    par Step 4 (goroutine)
         main->>ch: DisconnectAllWhatsApp()
         main->>ch: DisconnectAllTelegram()
-    and Step 2 (goroutine)
+    and Step 4 (goroutine)
         main->>st: FlushTokenUsage(context.Background())
         main->>st: FlushAllScanMetadata()
     end
-    main->>main: wg.Wait() — Step 1 + Step 2 완료 대기
+    main->>main: wg.Wait() — 연결 해제 + 플러시 완료 대기
 
-    main->>srv: srv.Shutdown(ctxTimeout, 30s)
-    note over srv: 진행 중인 HTTP 요청 완료 대기 (최대 30초)
-
-    main->>db: db.Close()
-    note over db: DB 커넥션 마지막 종료
+    main->>db: Step 5: db.Close()
+    note over db: 예산 소진·drain 오류와 무관하게 Step 4-5는 항상 실행
 
     note over whatap: defer trace.Shutdown() — main() 종료 시 자동 실행
 ```
 
 ### 5.2 단계별 WHY
 
-#### Step 1 — 외부 클라이언트 종료 (goroutine A)
+`runShutdown(steps shutdownSteps, budget)`이 순서를 소유합니다. 각 동작은 `shutdownSteps`의 함수 필드로 주입되므로 순서는 외부 클라이언트 없이 테스트됩니다(`main_shutdown_test.go`).
 
-```go
-// main.go:149-155
-go func() {
-    defer wg.Done()
-    channels.DisconnectAllWhatsApp()
-    channels.DisconnectAllTelegram()
-}()
-```
+#### Step 1 — 백그라운드 취소 (`cancelBackground`)
 
-**WHY:** WhatsApp(whatsmeow)·Telegram(gotd/td) 클라이언트는 장기 WebSocket/MTProto 연결을 유지합니다. root ctx 취소만으로는 이 연결이 즉시 닫히지 않습니다. `DisconnectAll*`을 명시적으로 호출해야 채널 고루틴이 블로킹 없이 정리됩니다. Step 2와 **병렬**로 실행해 총 shutdown 시간을 단축합니다.
+**WHY:** `RunAllScans(ctx)` 클로저처럼 root ctx를 쓰는 핸들러와 scanner 루프는 취소되어야 drain과 scanner 정리가 병행됩니다. 취소를 drain 뒤에 두면 긴 핸들러가 예산을 모두 쓰고 scanner 대기 시간이 0이 됩니다.
 
-#### Step 2 — 인메모리 데이터 플러시 (goroutine B)
+#### Step 2 — HTTP drain (`drainHTTP`, 예산 공유)
 
-```go
-// main.go:156-163
-go func() {
-    defer wg.Done()
-    store.FlushTokenUsage(context.Background())
-    store.FlushAllScanMetadata()
-}()
-```
+**WHY:** `ListenAndServe`를 즉시 종료하면 클라이언트는 응답 없이 커넥션이 끊깁니다. drain이 시간 초과 등으로 실패하면 `drainServer`가 `srv.Close()`로 남은 연결을 끊어 핸들러가 DB와 클라이언트를 계속 쓰지 않게 합니다. 외부 클라이언트와 DB는 이 단계가 끝난 뒤에 정리하므로 진행 중 요청이 해제된 클라이언트를 호출하지 않습니다.
 
-**WHY — 토큰 플러시:** `tokenDirtyData` 맵은 Gemini API 호출마다 누적됩니다. 주기적 flush(`FlushTokenUsageIfNeeded`)는 1시간 간격이므로 마지막 flush 이후 최대 1시간 분의 데이터가 메모리에만 존재합니다. 프로세스가 갑자기 종료되면 그 데이터는 영구 손실됩니다. 비용 집계·모델별 사용량 리포트가 오염됩니다.
+#### Step 3 — scanner 대기 (`backgroundDone`)
 
-**WHY — 스캔 메타데이터 플러시:** `scanCache`는 채널별 마지막 처리 타임스탬프를 메모리에 캐시합니다. 재시작 후 DB에서 읽어야 하는데, dirty key가 미플러시 상태이면 이전에 처리한 메시지를 재처리합니다 — AI 재추론 비용 및 중복 task 생성.
+**WHY:** `StartBackgroundScanner`는 비차단이며 모든 루프가 종료되면 닫히는 `<-chan struct{}`를 반환합니다. 진행 중인 AI 호출(15–20초)과 `PersistAllScanMetadata`가 `db.Close()` 이전에 끝나도록 기다립니다. 대기 한도는 Step 2와 같은 budget이며 만료되면 경고만 남기고 진행합니다.
 
-**WHY — `context.Background()` 사용:** root ctx가 이미 취소된 상태이므로 DB 작업에 원래의 ctx를 전달하면 즉시 실패합니다. 플러시 전용 fresh context를 사용합니다.
+#### Step 4 — 외부 클라이언트 해제와 인메모리 플러시 (병렬)
 
-#### Step 3 — HTTP drain (최대 30초)
+`disconnectClients`는 `DisconnectAllWhatsApp`/`DisconnectAllTelegram`, `flushInMemoryData`는 `FlushTokenUsage(context.Background())`와 `FlushAllScanMetadata`를 호출합니다.
 
-```go
-// main.go:166-171
-ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancelTimeout()
-srv.Shutdown(ctxTimeout)
-```
+**WHY — 연결 해제:** WhatsApp(whatsmeow)·Telegram(gotd/td) 클라이언트는 장기 WebSocket/MTProto 연결을 유지하므로 ctx 취소만으로 닫히지 않습니다. 병렬 실행으로 총 종료 시간을 줄입니다.
 
-**WHY:** 진행 중인 API 요청 중 일부는 Gemini 분석(`/api/scan/manual` 등)처럼 수십 초가 걸릴 수 있습니다. `ListenAndServe`를 즉시 종료하면 클라이언트는 응답 없이 커넥션이 끊깁니다. 30초 타임아웃은 대부분의 장시간 요청을 수용하되, 무한 대기를 방지합니다. Step 1·2와 **직렬**로 실행 — HTTP 요청이 Step 2의 DB 플러시와 경합하면 안 되기 때문입니다.
+**WHY — 토큰 플러시:** `tokenDirtyData` 맵은 AI 호출마다 누적됩니다. 주기적 flush(`FlushTokenUsageIfNeeded`)는 1시간 간격이므로 마지막 flush 이후 최대 1시간 분이 메모리에만 존재합니다. 종료 시 flush하지 않으면 비용 집계·모델별 사용량 리포트가 오염됩니다.
 
-#### Step 4 — DB close (마지막)
+**WHY — 스캔 메타데이터 플러시:** `scanCache`는 채널별 마지막 처리 타임스탬프를 메모리에 캐시합니다. 미플러시 상태로 재시작하면 이전에 처리한 메시지를 재처리하여 AI 재추론 비용과 중복 task가 생깁니다.
 
-```go
-// main.go:173-177
-if db := store.GetDB(); db != nil {
-    db.Close()
-}
-```
+**WHY — `context.Background()` 사용:** root ctx는 이미 취소된 상태이므로 DB 작업에 전달하면 즉시 실패합니다. 플러시 전용 fresh context를 사용합니다.
 
-**WHY:** Step 2의 플러시와 Step 3의 HTTP 핸들러 모두 DB를 사용합니다. DB를 먼저 닫으면 진행 중인 쿼리가 에러를 반환합니다. DB는 반드시 **마지막**에 닫습니다.
+#### Step 5 — DB close (마지막, `closeDB`)
+
+**WHY:** 플러시와 HTTP 핸들러, scanner 모두 DB를 사용합니다. 먼저 닫으면 진행 중인 쿼리가 에러를 반환하므로 반드시 **마지막**에 닫습니다.
 
 #### defer trace.Shutdown() — 암묵적 마지막 단계
 
 ```go
-// main.go:44-45
+// main.go: trace.Init(...) 직후
 trace.Init(map[string]string{})
 defer trace.Shutdown()
 ```
 
-`trace.Shutdown()`은 `defer`로 등록됐으므로 `main()` 반환 시 자동 실행됩니다. 이 시점은 Step 4 이후입니다. WhaTap 에이전트 내부 버퍼(미전송 트랜잭션 데이터)를 에이전트에 최종 전송합니다.
+`trace.Shutdown()`은 `defer`로 등록됐으므로 `main()` 반환 시 자동 실행됩니다. 이 시점은 Step 5 이후입니다. WhaTap 에이전트 내부 버퍼(미전송 트랜잭션 데이터)를 에이전트에 최종 전송합니다.
 
 ### 5.3 신호 처리
 
 ```go
-// main.go:136-140
+// main.go
 func waitForShutdownSignal() {
     quit := make(chan os.Signal, 1)
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -360,10 +341,21 @@ func waitForShutdownSignal() {
 
 | 단계 | 타임아웃 | 근거 |
 |------|----------|------|
-| Step 1 (채널 disconnect) | 무제한 (wg.Wait) | 외부 SDK disconnect는 보통 수 초 이내 |
-| Step 2 (플러시) | 무제한 (wg.Wait) | DB 기록 실패 시 재시도(`WithDBRetry`) 필요 |
-| Step 3 (HTTP drain) | **30초** | 장시간 AI 요청 수용, 무한 대기 방지 |
-| Step 4 (DB close) | 즉시 | 모든 쿼리가 완료된 후 실행됨 |
+| Step 1 (cancel) | 즉시 | ctx 취소는 비차단 |
+| Step 2 (HTTP drain) | **31초 (Step 3과 공유)** | 장시간 AI 요청 수용, 무한 대기 방지. 소진 시 `srv.Close()` |
+| Step 3 (scanner 대기) | **같은 31초 예산** | Step 1에서 취소되므로 drain과 병행하여 정리됨. 만료 시 Warn 후 진행 |
+| Step 4 (연결 해제·플러시) | 무제한 (wg.Wait) | 예산과 무관하게 항상 실행. flush에는 타임아웃이 없음 |
+| Step 5 (DB close) | 즉시 | Step 4 이후 실행 |
+
+전체 종료 시간은 최악 약 31초 + WhatsApp disconnect 대기(최대 2초) + flush이며 `docker-compose.yml`의 `stop_grace_period: 1m` 안에 들어갑니다.
+
+### 5.5 알려진 한계 (REVIEW.md R3 Open)
+
+다음 작업은 scanner `wg`·종료 대기 밖에서 실행되어 `db.Close()`와 겹칠 수 있습니다. 실제 유실은 확인하지 않았습니다.
+
+- Slack·completion detached goroutine(`WithoutCancel` + 293초 타임아웃)
+- Telegram `DisconnectAll`(`runClient` 종료 미대기), WhatsApp 이벤트 핸들러
+- notion-wa logger의 최종 flush, `HandleManualScan`의 untracked goroutine
 
 ---
 
@@ -481,7 +473,7 @@ func (l *primeLoop) tick(ctx context.Context, wg *sync.WaitGroup) {
 |------|------|
 | `services/lock_service.go` | RoomLockService — 방별 인메모리 뮤텍스 관리 |
 | `internal/safego/safego.go` | `Recover(name)` — 고루틴 패닉 격리 |
-| `main.go` (L33-91, L136-179) | root ctx, `waitForShutdownSignal`, `gracefulShutdown` |
+| `main.go` | root ctx, `waitForShutdownSignal`, `runShutdown`, `shutdownSteps` |
 | `store/cache_store.go` | `metadataMu`, `cacheMu`, `singleflight`, `RefreshCache` |
 | `store/scan_store.go` | `snapshotDirtyScanEntries`, `clearDirtyScanFlags`, `FlushAllScanMetadata` |
 | `store/token_store.go` | `tokenMu`, `FlushTokenUsage`, double-flush 방지 패턴 |

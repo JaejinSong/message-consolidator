@@ -145,7 +145,7 @@ A 4-stage cascade — Raw Parser noise gate → Flash-Lite binary filter → Fla
 **한국어:**
 - **단방향 의존**: Handler → Service → Store. Store에 비즈니스 로직 금지.
 - **소수(Prime) 주기**: 백그라운드 스캐너 8개 loop가 각각 소수 초를 무작위 추첨 → 외부 cron과의 harmonic resonance 회피.
-- **Graceful Shutdown**: SIGINT/SIGTERM 수신 시 외부 채널 연결 해제 → 메모리 플러시 → HTTP drain → DB 종료 순서 병렬 보장.
+- **Graceful Shutdown**: SIGINT/SIGTERM 수신 시 백그라운드 취소 → HTTP drain → scanner 종료 대기 → 외부 채널 연결 해제·메모리 플러시(병렬) → DB 종료 순서를 보장하며, drain과 scanner 대기는 하나의 예산(31초)을 공유합니다.
 - **수동 APM**: `trace.Init()` 없이 모든 WhaTap 호출은 silent no-op. `whatap-go-inst` 자동 주입 금지.
 
 **English:**
