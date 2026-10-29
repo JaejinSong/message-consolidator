@@ -58,6 +58,12 @@ var (
 
 	// sfGroup handles single-flight requests to prevent cache stampede.
 	sfGroup singleflight.Group
+
+	// cacheGen counts invalidations per user so an in-flight refresh can detect it raced one. Guarded by cacheMu.
+	cacheGen = make(map[string]uint64)
+
+	// refreshPublishHook runs between a refresh query and its publish; nil in production.
+	refreshPublishHook func()
 )
 
 func ResetForTest() {
@@ -173,6 +179,10 @@ func RefreshCache(ctx context.Context, email string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	cacheMu.RLock()
+	gen := cacheGen[email]
+	cacheMu.RUnlock()
+
 	resolver, err := BuildContactResolver(ctx, email)
 	if err != nil {
 		return fmt.Errorf("contact resolver: %w", err)
@@ -186,11 +196,18 @@ func RefreshCache(ctx context.Context, email string) error {
 	newKnownTS := make(map[string]bool)
 	newActive := buildMessages(rows, resolver, newKnownTS)
 
+	if refreshPublishHook != nil {
+		refreshPublishHook()
+	}
 	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	// Why: An invalidation landed after the query; publishing would resurrect stale data as valid.
+	if cacheGen[email] != gen {
+		return nil
+	}
 	messageCache[email] = newActive
 	knownTS[email] = newKnownTS
 	cacheInitialized[email] = true
-	cacheMu.Unlock()
 	return nil
 }
 
@@ -199,6 +216,10 @@ func RefreshCache(ctx context.Context, email string) error {
 func RefreshArchiveCache(ctx context.Context, email string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
+	cacheMu.RLock()
+	gen := cacheGen[email]
+	cacheMu.RUnlock()
 
 	resolver, err := BuildContactResolver(ctx, email)
 	if err != nil {
@@ -212,10 +233,16 @@ func RefreshArchiveCache(ctx context.Context, email string) error {
 
 	newArchive := buildArchiveMessages(rows, resolver)
 
+	if refreshPublishHook != nil {
+		refreshPublishHook()
+	}
 	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if cacheGen[email] != gen {
+		return nil
+	}
 	archiveCache[email] = newArchive
 	archiveInitialized[email] = true
-	cacheMu.Unlock()
 	return nil
 }
 
@@ -253,6 +280,7 @@ func EnsureArchiveCacheInitialized(ctx context.Context, email string) error {
 func InvalidateCacheActive(email string) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
+	cacheGen[email]++
 	delete(messageCache, email)
 	delete(knownTS, email)
 	delete(cacheInitialized, email)
@@ -263,6 +291,7 @@ func InvalidateCacheActive(email string) {
 func InvalidateCache(email string) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
+	cacheGen[email]++
 	delete(messageCache, email)
 	delete(archiveCache, email)
 	delete(knownTS, email)
