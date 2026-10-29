@@ -10,12 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"message-consolidator/ai"
 	"message-consolidator/ai/core"
 	"message-consolidator/config"
-	"message-consolidator/internal/whataphttpx"
 	"message-consolidator/logger"
-
-	"google.golang.org/genai"
 )
 
 type ReleaseNotesJSON struct {
@@ -100,24 +98,24 @@ func getCommitsSinceTime(lastTime string) string {
 }
 
 func fetchReleaseNotes(ctx context.Context, cfg *config.Config, commits, version string) (ReleaseNotesJSON, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:     cfg.GeminiAPIKey,
-		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: whataphttpx.Client(), //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
+	client, err := ai.NewAIClient(ctx, ai.ProviderConfig{
+		Provider:              "deepseek",
+		DeepSeekAPIKey:        cfg.DeepSeekAPIKey,
+		DeepSeekBaseURL:       cfg.DeepSeekBaseURL,
+		DeepSeekAnalysisModel: cfg.DeepSeekAnalysisModel,
 	})
 	if err != nil {
-		return ReleaseNotesJSON{}, fmt.Errorf("initialize Gemini client: %w", err)
+		return ReleaseNotesJSON{}, fmt.Errorf("initialize AI client: %w", err)
 	}
 
 	prompt := loadPrompt(commits, version)
 	logger.Infof("[AI] Payload size: %d bytes", len(prompt))
 
-	resp, err := client.Models.GenerateContent(ctx, "gemini-3-flash-preview", genai.Text(prompt),
-		&genai.GenerateContentConfig{ResponseMIMEType: "application/json"})
+	text, err := client.CallGenericAPI(ctx, "", "ReleaseNotes", "", cfg.DeepSeekAnalysisModel, "", prompt, ai.ThinkOff)
 	if err != nil {
-		return ReleaseNotesJSON{}, fmt.Errorf("request Gemini content: %w", err)
+		return ReleaseNotesJSON{}, fmt.Errorf("request release notes content: %w", err)
 	}
-	return parseAIResponse(resp), nil
+	return parseAIResponse(text), nil
 }
 
 func loadPrompt(commits, version string) string {
@@ -134,13 +132,9 @@ func loadPrompt(commits, version string) string {
 	return rendered
 }
 
-func parseAIResponse(resp *genai.GenerateContentResponse) ReleaseNotesJSON {
+func parseAIResponse(text string) ReleaseNotesJSON {
 	var result ReleaseNotesJSON
-	if len(resp.Candidates) == 0 {
-		return result
-	}
-	txt := resp.Candidates[0].Content.Parts[0].Text
-	_ = json.Unmarshal([]byte(txt), &result)
+	_ = json.Unmarshal([]byte(core.SanitizeJSON(text)), &result)
 	return result
 }
 

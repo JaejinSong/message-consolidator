@@ -21,9 +21,6 @@ func (failingReleaseTransport) RoundTrip(*http.Request) (*http.Response, error) 
 }
 
 func TestReleaseNotesFailurePreservesFiles(t *testing.T) {
-	for _, key := range []string{"GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_ENTERPRISE", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION", "GOOGLE_CLOUD_REGION"} {
-		t.Setenv(key, "")
-	}
 	for _, scenario := range []string{"initialization", "generation"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := t.TempDir()
@@ -64,13 +61,13 @@ func TestReleaseNotesFailureHelper(t *testing.T) {
 		return
 	}
 	key := ""
-	want := "initialize Gemini client"
+	want := "initialize AI client"
 	if scenario == "generation" {
 		key = "test-key"
-		want = "request Gemini content"
+		want = "request release notes content"
 		http.DefaultTransport = failingReleaseTransport{}
 	}
-	err := runReleaseNotes(context.Background(), &config.Config{GeminiAPIKey: key})
+	err := runReleaseNotes(context.Background(), &config.Config{DeepSeekAPIKey: key})
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("expected contextual %s error, got %v", want, err)
 	}
