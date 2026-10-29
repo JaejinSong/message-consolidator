@@ -45,8 +45,6 @@ func SetupTestDB(initFunc func(context.Context, *config.Config) error, resetFunc
 
 // RemoveTestDBFiles thoroughly removes the SQLite database file and its WAL/SHM artifacts.
 // Why: SQLite in WAL mode creates -shm and -wal files that linger if not explicitly closed and deleted.
-func RemoveTestDBFiles(path string) {}
-
 // RandomEmail generates a unique email address for test data isolation.
 // Why: Ensures tests sharing a single in-memory DB never clash on unique constraints.
 func RandomEmail(prefix string) string {
