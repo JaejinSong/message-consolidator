@@ -20,21 +20,41 @@ func executeUpdateMessageDetails(ctx context.Context, q Querier, email string, i
 	})
 }
 
+// Why: ErrNoRows means the message vanished; callers skip silently instead of failing.
+func getMessageForUpdate(ctx context.Context, qw Querier, id MessageID) (db.GetMessageByIDRow, bool, error) {
+	row, err := db.New(qw).GetMessageByID(ctx, int64(id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return row, false, nil
+	}
+	if err != nil {
+		return row, false, fmt.Errorf("read title before update: %w", err)
+	}
+	return row, true, nil
+}
+
+// Why: skip=true when the row is gone or owned by another user, so the update must not run.
+func checkTitleChange(ctx context.Context, qw Querier, email string, id MessageID, title sql.NullString) (changed, skip bool, err error) {
+	if !title.Valid {
+		return false, false, nil
+	}
+	row, found, err := getMessageForUpdate(ctx, qw, id)
+	if err != nil {
+		return false, false, err
+	}
+	if !found || row.UserEmail != email {
+		return false, true, nil
+	}
+	return row.Task != title.String, false, nil
+}
+
 func updateMessageWithTitleInvalidation(ctx context.Context, q Querier, email string, id MessageID, title sql.NullString, update func(Querier) error) error {
 	return withMessageTitleTx(ctx, q, func(qw Querier) error {
-		changed := false
-		if title.Valid {
-			row, err := db.New(qw).GetMessageByID(ctx, int64(id))
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil
-			}
-			if err != nil {
-				return fmt.Errorf("read title before update: %w", err)
-			}
-			if row.UserEmail != email {
-				return nil
-			}
-			changed = row.Task != title.String
+		changed, skip, err := checkTitleChange(ctx, qw, email, id, title)
+		if err != nil {
+			return err
+		}
+		if skip {
+			return nil
 		}
 		if err := update(qw); err != nil {
 			return fmt.Errorf("update message: %w", err)
@@ -61,7 +81,7 @@ func withMessageTitleTx(ctx context.Context, q Querier, update func(Querier) err
 	if err != nil {
 		return fmt.Errorf("begin message title transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // Why: Deferred rollback safety net; the explicit Commit overrides on success.
 	if err := update(tx); err != nil {
 		return err
 	}
@@ -391,24 +411,26 @@ func UpdateTaskAssigneesBatch(ctx context.Context, email string, updates map[Mes
 	return err
 }
 
+// Why: an empty title would blank the task, so degrade to append-only.
+func appendOriginalTextOnly(ctx context.Context, q Querier, email, room string, id MessageID, newOriginalText string) error {
+	logger.Warnf("[STORE] UpdateTaskFullAppend: empty newTask for id=%d, falling back to append-only", id)
+	if q == nil {
+		q = GetDB()
+	}
+	return AppendOriginalText(ctx, q, email, room, id, newOriginalText)
+}
+
 func UpdateTaskFullAppend(ctx context.Context, q Querier, email, room string, id MessageID, newTask, newOriginalText string) error {
 	if strings.TrimSpace(newTask) == "" {
-		logger.Warnf("[STORE] UpdateTaskFullAppend: empty newTask for id=%d, falling back to append-only", id)
-		if q == nil {
-			q = GetDB()
-		}
-		return AppendOriginalText(ctx, q, email, room, id, newOriginalText)
+		return appendOriginalTextOnly(ctx, q, email, room, id, newOriginalText)
 	}
 	updated := false
 	err := withMessageTitleTx(ctx, q, func(qw Querier) error {
-		row, err := db.New(qw).GetMessageByID(ctx, int64(id))
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
+		row, found, err := getMessageForUpdate(ctx, qw, id)
 		if err != nil {
-			return fmt.Errorf("read title before update: %w", err)
+			return err
 		}
-		if row.UserEmail != email || row.Room != room {
+		if !found || row.UserEmail != email || row.Room != room {
 			return nil
 		}
 		if err := db.New(qw).UpdateTaskFullAppend(ctx, db.UpdateTaskFullAppendParams{

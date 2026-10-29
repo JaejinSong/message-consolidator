@@ -103,7 +103,7 @@ func fetchReleaseNotes(ctx context.Context, cfg *config.Config, commits, version
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:     cfg.GeminiAPIKey,
 		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: whataphttpx.Client(),
+		HTTPClient: whataphttpx.Client(), //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
 	})
 	if err != nil {
 		return ReleaseNotesJSON{}, fmt.Errorf("initialize Gemini client: %w", err)

@@ -322,6 +322,14 @@ func (s *SlackClient) GetMessages(ctx context.Context, channelID string, since t
 }
 
 // Why: Separates the message filtering, mapping, and thread expansion logic from the main pagination loop.
+// Why: thread_broadcast replies arrive in channel history; key them to their thread root.
+func threadRootOfReply(m slack.Message) string {
+	if m.ThreadTimestamp != "" && m.ThreadTimestamp != m.Timestamp {
+		return m.ThreadTimestamp
+	}
+	return ""
+}
+
 func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID string, messages []slack.Message, since time.Time) ([]types.RawMessage, bool) {
 	var msgs []types.RawMessage
 	reachedOld := false
@@ -342,11 +350,7 @@ func (s *SlackClient) processHistoryMessages(ctx context.Context, channelID stri
 		}
 
 		senderName := s.GetUserName(ctx, m.User)
-		replyTo := ""
-		//Why: thread_broadcast replies arrive in channel history; key them to their thread root.
-		if m.ThreadTimestamp != "" && m.ThreadTimestamp != m.Timestamp {
-			replyTo = m.ThreadTimestamp
-		}
+		replyTo := threadRootOfReply(m)
 		msgs = append(msgs, types.RawMessage{
 			ID:              m.Timestamp,
 			Sender:          senderName,

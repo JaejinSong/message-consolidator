@@ -457,7 +457,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	// scan cycle, and (b) re-processing every cycle thereafter. Fix is to return
 	// true once Analyze succeeds so the message gets marked processed.
 	t.Run("No Thread Parent - Fallback returns handled=true to stop token bleed", func(t *testing.T) {
-		setupIngestRegressionDB(t)
+		setupIngestRegressionDB(t) //nolint:contextcheck // test DB bootstrap has no request ctx; testutil.SetupTestDB takes none by design.
 		mockAI := &MockAI{Results: []store.TodoItem{
 			{ID: ptr(store.MessageID(0)), State: "new", Task: "Review the launch checklist"},
 		}}
@@ -540,7 +540,7 @@ func TestCompletionService_ProcessPotentialCompletion(t *testing.T) {
 	})
 
 	t.Run("Self-Origin Follow-Up On Closed-Task Thread - Should NOT Skip Guard", func(t *testing.T) {
-		setupIngestRegressionDB(t)
+		setupIngestRegressionDB(t) //nolint:contextcheck // test DB bootstrap has no request ctx; testutil.SetupTestDB takes none by design.
 		// Why: previously guard short-circuited any self-origin mail when no INCOMPLETE
 		// task existed, blocking legitimate follow-ups on threads where prior tasks
 		// were all closed. Now thread-level any-task check must allow these through.

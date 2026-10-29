@@ -186,14 +186,10 @@ func isArchivedCandidate(m *store.ConsolidatedMessage) bool {
 	return m.Category == string(types.CategoryMerged)
 }
 
-// isTrustedResolve — only the user's own statement, an in-thread reply, the assignee's
-// own completion report, or an ID-anchored QUERY answer / group-member report may
-// hard-close a task; anything else becomes a confirm-first candidate (resolve_candidate).
-func isTrustedResolve(item store.TodoItem, match *store.ConsolidatedMessage) bool {
-	return trustedResolveRule(item, match) != ""
-}
-
 // trustedResolveRule names the trust rule that lets a resolve proposal hard-close a task, or "" when none applies.
+// Only the user's own statement, an in-thread reply, the assignee's own completion report, or an
+// ID-anchored QUERY answer / group-member report may hard-close; anything else becomes a
+// confirm-first candidate (resolve_candidate).
 func trustedResolveRule(item store.TodoItem, match *store.ConsolidatedMessage) string {
 	switch {
 	case item.IsFromMe:
