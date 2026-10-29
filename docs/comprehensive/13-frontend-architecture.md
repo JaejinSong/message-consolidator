@@ -135,7 +135,7 @@ DOM·네트워크 의존 없음. 테스트 커버리지 확보된 순수 함수 
 
 **인터랙티브 가이드 모듈 (2026-05-03 추가):**
 - [`src/guide.ts`](../../src/guide.ts) — 사이드바 탭 네비게이션 + `parseMarkdown` 기반 섹션 렌더링. `guide.init()`은 `.c-guide__sidebar-btn` 버튼에 이벤트를 바인딩하고 `guide.onShow()`는 초기 섹션을 로드합니다.
-- [`src/guide-content.ts`](../../src/guide-content.ts) — `docs/user-guide/` 마크다운 내용을 빌드 타임에 문자열로 번들링. `GUIDE_SECTIONS` + `GUIDE_CONTENT` 레코드를 export합니다.
+- [`src/guide/`](../../src/guide/) — `content.ts`(`GUIDE_SECTIONS` + 섹션 마크다운 번들), `router.ts`·`sidebar.ts`·`toc.ts`·`search.ts`·`anchors.ts`·`callouts.ts`가 렌더링을 나눠 맡습니다.
 - [`static/css/v2-guide.css`](../../static/css/v2-guide.css) — `.c-guide__*` BEM 블록 (패널·사이드바·콘텐츠 레이아웃).
 
 ### 2.5 events.ts — Pub/Sub 이벤트 버스

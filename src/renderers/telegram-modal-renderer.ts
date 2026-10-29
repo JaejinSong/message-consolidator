@@ -168,7 +168,7 @@ async function handleLogout(onLoggedOut: () => void): Promise<void> {
     }
 }
 
-export function resetTelegramModalInputs(): void {
+function resetTelegramModalInputs(): void {
     ['telegramPhoneInput', 'telegramCodeInput', 'telegramPasswordInput'].forEach(id => {
         const el = document.getElementById(id) as HTMLInputElement | null;
         if (el) el.value = '';

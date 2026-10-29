@@ -8,16 +8,12 @@ import { ICONS } from './icons';
 
 
 export {
-    updateServiceStatusUI,
     updateSlackStatus,
     updateWhatsAppStatus,
     updateGmailStatus,
     updateTelegramStatus,
     updateLINEStatus,
     showWaModal,
-    showGmailModal,
-    showTelegramModal,
-    hideTelegramModal,
     bindGetQRBtn,
     updateWhatsAppQR,
     updateQRTimer,

@@ -76,7 +76,7 @@ This directory is the **single source of truth** for the `message-consolidator` 
 
 Same structure — see chapter cross-references inside each file.
 
-- **Interactive user guide**: [`docs/user-guide/`](../../docs/user-guide/) (getting-started, channels, tasks, reports, faq) — rendered in-app via `src/guide.ts` + `src/guide-content.ts`
+- **Interactive user guide**: [`docs/user-guide/`](../../docs/user-guide/) (getting-started, channels, tasks, reports, faq) — rendered in-app via `src/guide.ts` + `src/guide/`
 
 ---
 

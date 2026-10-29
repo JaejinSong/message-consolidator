@@ -310,7 +310,7 @@ npm run test:watch     # 감시 모드 (개발 중)
 
 ## 6. 검증 도구 (verify/)
 
-`tests/verify-loading-ui.cjs` (빌드 아티팩트 정적 분석)와 `src/tests/verify-logic.ts` (로직 검증 스크립트)는 `bash unit-test.sh`의 4번째 병렬 태스크로 실행됩니다. CI 미포함 — 로컬 전용.
+`tests/verify-loading-ui.cjs` (빌드 아티팩트 정적 분석)는 `bash unit-test.sh`의 3번째 병렬 태스크로 실행됩니다. CI 미포함 — 로컬 전용.
 
 ---
 
@@ -323,18 +323,19 @@ npm run test:watch     # 감시 모드 (개발 중)
 ```yaml
 on:
   pull_request:
-    paths: ["**.go", "go.mod", "go.sum", ".golangci.yml"]
+    paths: ["**.go", "go.mod", "go.sum", ".golangci.yml", "src/**", "static/css/**", "package.json", "package-lock.json", "eslint.config.js", ".stylelintrc.json"]
   push:
     branches: [main]
 ```
 
-`golangci-lint v1.64.8`만 자동 실행된다. Go 1.25, `--timeout=5m` 옵션.
+`golangci-lint v2.12.2`(Go 1.25, `--timeout=5m`)와 `npm run lint`(eslint + stylelint, Node 22) 두 잡이 자동 실행된다.
 
 ### 테스트 자동화 현황
 
 | 항목 | CI 포함 여부 |
 |---|---|
 | `golangci-lint` | **예** (lint.yml) |
+| `eslint` + `stylelint` | **예** (lint.yml) |
 | `go test ./...` | 아니오 (수동) |
 | `npm test` (vitest) | 아니오 (수동) |
 | `make test-ai` (AI 회귀) | 아니오 (수동) |

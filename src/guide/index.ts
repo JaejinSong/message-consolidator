@@ -11,7 +11,6 @@ import type { SearchController } from './search';
 import { applyHeadingAnchors } from './anchors';
 import { parseMarkdown } from '../logic';
 
-export type { GuideSection } from './content';
 
 export interface GuideAPI {
     init(): void;

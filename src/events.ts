@@ -6,7 +6,7 @@
 // Why: generic event bus carries heterogeneous payloads. The runtime store keeps
 // listeners as `EventCallback<unknown>` while `on/emit` accept a per-call generic
 // so callers keep typed callbacks without `any`.
-export type EventCallback<T = unknown> = (data: T) => void;
+type EventCallback<T = unknown> = (data: T) => void;
 
 class EventEmitter {
     private events: Record<string, EventCallback<unknown>[]> = {};

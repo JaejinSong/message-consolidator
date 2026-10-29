@@ -3,16 +3,6 @@
  * @description Centralized constants for DOM IDs and service statuses with TypeScript.
  */
 
-export const SERVICE_IDS = {
-    SLACK: 'slack',
-    WHATSAPP: 'wa',
-    GMAIL: 'gmail',
-    TELEGRAM: 'telegram',
-    LINE: 'line'
-} as const;
-
-export type ServiceId = typeof SERVICE_IDS[keyof typeof SERVICE_IDS];
-
 export const ASSIGNEE_SHARED = 'shared';
 
 export const DOM_IDS = {
@@ -63,9 +53,5 @@ export const TELEGRAM_STATUS = {
     DISCONNECTED: 'disconnected'
 } as const;
 
-export type TelegramStatus = typeof TELEGRAM_STATUS[keyof typeof TELEGRAM_STATUS];
-
 // Why: the 5 closed AI extraction categories (mirrors types.IsValidTaskCategory on the backend).
 export const TASK_CATEGORIES = ['TASK', 'POLICY', 'QUERY', 'PROMISE', 'WAITING'] as const;
-
-export type TaskCategory = typeof TASK_CATEGORIES[number];

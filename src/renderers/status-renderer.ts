@@ -14,7 +14,7 @@ export type ServiceStatus = boolean | string;
 /**
  * Common utility to update service status in the UI dashboard and settings.
  */
-export function updateServiceStatusUI(service: string, status: ServiceStatus): void {
+function updateServiceStatusUI(service: string, status: ServiceStatus): void {
     let isConnected = status === true;
     if (typeof status === 'string') {
         const normalized = status.toLowerCase();
@@ -169,7 +169,6 @@ function hideModal(id: string): void {
 }
 
 export function showWaModal(): void { showModal('waModal'); }
-export function showGmailModal(): void { showModal('gmailModal'); }
 export function showTelegramModal(): void { showModal('telegramModal'); }
 export function hideTelegramModal(): void { hideModal('telegramModal'); }
 

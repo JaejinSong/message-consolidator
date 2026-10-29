@@ -3,7 +3,7 @@
  * @description Centralized type definitions for Project GEM.
  */
  
-export interface Subtask {
+interface Subtask {
     task: string;
     assignee_id?: number;
     assignee?: string;
@@ -45,12 +45,12 @@ export interface Message {
 
 // Why: Go's database/sql.NullTime/NullInt64 serialize via reflection (no custom
 // MarshalJSON on this project), yielding this exact {Field, Valid} shape over the wire.
-export interface NullableTime {
+interface NullableTime {
     Time: string;
     Valid: boolean;
 }
 
-export interface NullableInt64 {
+interface NullableInt64 {
     Int64: number;
     Valid: boolean;
 }
@@ -123,7 +123,7 @@ export interface StalledItem {
     days_stalled: number;
 }
 
-export interface StalledBucketsResponse {
+interface StalledBucketsResponse {
     mine: StalledItem[];
     observed: StalledItem[];
 }
@@ -175,7 +175,7 @@ export interface AdminSettingUpdateResult {
     restart_required: boolean;
 }
 
-export interface ProviderCost {
+interface ProviderCost {
     provider: string;
     prompt: number;
     completion: number;
@@ -361,19 +361,4 @@ export interface AccountItem {
     id: string | number;
     canonical_id: string;
     display_name?: string;
-}
-
-export interface ComboboxOptions {
-    placeholder?: string;
-    searchFn: (q: string) => Promise<AccountItem[]>;
-    onSelect?: (item: AccountItem) => void;
-    debounceMs?: number;
-    renderItem?: (item: AccountItem) => string;
-    id?: string;
-}
-
-export interface ComboboxInterface {
-    getValue(): AccountItem | null;
-    clear(): void;
-    destroy(): void;
 }

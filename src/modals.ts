@@ -24,7 +24,7 @@ async function pollProposalJob(): Promise<{ proposals_created: number }> {
     throw new Error('Analysis timed out');
 }
 
-export interface ModalInterface {
+interface ModalInterface {
     init(fetchMessagesCallback: () => void): void;
     attachGlobalCloseListeners(): void;
     setupReleaseNotesModal(): void;

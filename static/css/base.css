@@ -42,7 +42,6 @@ body {
     textarea,
     select,
     .c-input,
-    .c-combobox__input,
     .c-guide__search-input {
         font-size: 1rem;
     }

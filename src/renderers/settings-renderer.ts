@@ -1,6 +1,6 @@
 import { escapeHTML } from '../utils';
 
-export interface ProposalContact {
+interface ProposalContact {
     display_name?: string;
     canonical_id?: string;
 }

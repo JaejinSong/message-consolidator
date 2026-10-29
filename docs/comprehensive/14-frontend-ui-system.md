@@ -13,7 +13,7 @@
 
 | 디렉토리 | 역할 | 예시 |
 |---|---|---|
-| `src/components/` | 독립 생명주기를 가진 재사용 위젯 | `Combobox`, `MessageCard`, `TokenUsageCard` |
+| `src/components/` | 독립 생명주기를 가진 재사용 위젯 | `MessageCard`, `TokenUsageCard` |
 | `src/renderers/` | 특정 탭·모달 한 곳에서만 쓰이는 섹션 담당자 | `admin-renderer.ts`, `connections-renderer.ts` |
 
 컴포넌트는 `new ClassName(container, options)` 또는 순수 함수(`MessageCard(props): string`) 형태로 노출한다.
@@ -67,41 +67,7 @@ export function MessageCard(props: MessageCardProps): string { ... }
 
 **사용처**: `app.ts`의 대시보드 렌더 루프, 아카이브 테이블 row 생성.
 
----
-
-### 2.2 `Combobox` — `src/components/combobox.ts`
-
-**형태**: 클래스 컴포넌트. 생성 시 `container` DOM 요소와 `ComboboxOptions`를 받고 자체 DOM을 `innerHTML`로 주입한다.
-
-```typescript
-export class Combobox implements ComboboxInterface {
-    constructor(container: HTMLElement, options: ComboboxOptions) { ... }
-    getValue(): AccountItem | null { ... }
-    clear(): void { ... }
-    destroy(): void { ... }  // Why: listener leak 방지를 위해 명시적 정리 필수
-}
-```
-
-**BEM 블록**: `.c-combobox`
-
-핵심 옵션:
-
-| 옵션 | 설명 |
-|---|---|
-| `searchFn` | `async (query: string) => AccountItem[]` — 비동기 검색 주입 |
-| `onSelect` | 선택 시 콜백 |
-| `debounceMs` | 기본값 250ms. 검색 API 과호출 방지 |
-| `renderItem` | 아이템 HTML 커스터마이징 (default: title + subtitle 2줄) |
-
-키보드 네비게이션 (`ArrowDown`, `ArrowUp`, `Enter`, `Escape`) 과 외부 클릭 시 드롭다운 닫기를 지원한다.
-
-**Why 클래스**: `destroy()`로 `document.addEventListener`로 등록한 click 핸들러를 명시적으로 제거해야 한다. SPA 탭 전환 시 컴포넌트가 DOM에서 제거되어도 document-level 핸들러는 살아남기 때문이다.
-
-**사용처**: 설정 탭의 계정 연결(Account Linking) 폼에서 담당자 검색.
-
----
-
-### 2.3 `TokenUsageCard` — `src/components/token-usage.ts`
+### 2.2 `TokenUsageCard` — `src/components/token-usage.ts`
 
 **형태**: 클래스 컴포넌트. `containerId`를 받아 `document.getElementById`로 마운트한다.
 
@@ -350,8 +316,8 @@ export function renderSourceList(channels?: string[], fallback?: string): string
 .c-[block]__[element]--[modifier]
 ```
 
-- **Block**: 독립적으로 의미 있는 컴포넌트 단위. 예: `c-message-card`, `c-combobox`, `c-btn`.
-- **Element**: 블록 내부 구성 요소. 예: `c-message-card__header`, `c-combobox__input`.
+- **Block**: 독립적으로 의미 있는 컴포넌트 단위. 예: `c-message-card`, `c-status-card`, `c-btn`.
+- **Element**: 블록 내부 구성 요소. 예: `c-message-card__header`, `c-message-card__assignee`.
 - **Modifier**: 상태 또는 변형. 예: `c-message-card--done`, `c-btn--primary`.
 
 ### 5.2 `c-*` 프리픽스
@@ -364,7 +330,6 @@ export function renderSourceList(channels?: string[], fallback?: string): string
 |---|---|
 | `buttons.css` | `.c-btn`, `.c-btn--primary`, `.c-btn--ghost` 등 |
 | `badge.css` | `.c-badge`, `.c-badge--priority-*` |
-| `combobox.css` | `.c-combobox`, `.c-combobox__input`, `.c-combobox__item--active` |
 | `message-card.css` | `.c-message-card` 전체 블록 |
 | `status-card.css` | `.c-status-card`, `--active`, `--inactive` |
 | `telegram-modal.css` | `.c-modal` (Telegram 전용 확장) |
@@ -380,8 +345,8 @@ export function renderSourceList(channels?: string[], fallback?: string): string
 
 ### 5.4 설계 원칙
 
-- Element는 블록의 직계 자식에만 붙인다. 예: `.c-combobox__menu` 안의 아이템은 `.c-combobox__item`이며, `.c-combobox__menu__item`(2중 `__`)는 잘못된 형태다.
-- Modifier는 Element에도 적용 가능하다. 예: `.c-combobox__item--active`.
+- Element는 블록의 직계 자식에만 붙인다. 예: `.c-message-card__actions` 안의 버튼은 `.c-message-card__action-btn`이며, `.c-message-card__actions__btn`(2중 `__`)는 잘못된 형태다.
+- Modifier는 Element에도 적용 가능하다. 예: `.c-message-card__assignee--shared`.
 - 상태 클래스(`hidden`, `active`)는 JS로 토글하는 헬퍼 클래스이며 BEM 모디파이어와 공존한다.
 
 ---
@@ -479,21 +444,17 @@ grep -rn '[0-9]px' static/css/components/ | grep -v 'border'
 
 ### 8.2 `.js` 파일 전환
 
-`CLAUDE.md`에 따라 `.js` 파일 발견 시 즉시 `.ts`로 전환해야 한다. `knowledge/FRONTEND_ARCHITECTURE.md`는 구버전 `.js` 기반으로 작성되어 있어 참고 시 주의가 필요하다. 실제 소스는 `src/**/*.ts`다.
+`src/`·`static/` 아래 신규 `.js`/`.jsx` 생성은 [`.claude/hooks/guard-edit.sh`](../../.claude/hooks/guard-edit.sh)가 막습니다. 기존 `.js`를 발견하면 `.ts`로 전환합니다.
 
-### 8.3 `document.addEventListener` 누수
-
-`Combobox.destroy()` 호출 없이 컴포넌트를 교체하면 `document` 레벨 click 핸들러가 누적된다. 탭 전환으로 컴포넌트가 재생성되는 경우 반드시 이전 인스턴스의 `destroy()`를 먼저 호출해야 한다.
-
-### 8.4 `I18nEntry` 키 누락
+### 8.3 `I18nEntry` 키 누락
 
 신규 i18n 키 추가 시 4개 파일(`ko`, `en`, `id`, `th`) 모두에 추가해야 한다. `I18nEntry` 타입에 필드를 추가하면 TypeScript가 누락 파일에서 컴파일 에러를 발생시킨다.
 
-### 8.5 `hidden` vs CSS 모디파이어 혼용
+### 8.4 `hidden` vs CSS 모디파이어 혼용
 
 일부 섹션은 `element.classList.toggle('hidden', condition)`을 사용하고, 다른 곳은 BEM 모디파이어(`c-connection-card--disconnected`)를 사용한다. 신규 코드는 가시성 제어에 `hidden` 유틸리티 클래스를 사용하고 시각적 변형에만 BEM 모디파이어를 사용하는 패턴을 권장한다.
 
-### 8.6 보고서 툴팁 싱글톤
+### 8.5 보고서 툴팁 싱글톤
 
 `reports-renderer.ts`의 `showTooltip()`은 `document.body`에 `#report-tooltip` 요소를 최초 호출 시 생성하고 이후 재사용한다. Insights 탭을 떠나도 요소가 DOM에 남아있으므로 필요 시 숨김(`display:none`) 상태를 확인할 것.
 
@@ -506,7 +467,6 @@ grep -rn '[0-9]px' static/css/components/ | grep -v 'border'
 | → [13-frontend-architecture.md] | 모듈 의존성 그래프, `app.ts` 진입점, Clean Architecture 레이어 |
 | → [19-user-manual.md] | 최종 사용자가 보는 각 UI 섹션의 기능 설명 |
 | → [05-channels.md] | 채널(Slack/WhatsApp/Gmail/Telegram)별 백엔드 연결 로직 |
-| → [09-identity-and-dedup.md] | Combobox로 조작하는 계정 연결(Account Linking) 배경 |
 
 **Deltas (현재 코드와 구버전 문서 차이)**
 
@@ -516,4 +476,4 @@ grep -rn '[0-9]px' static/css/components/ | grep -v 'border'
 
 ---
 
-*총 줄 수: 약 480줄 | components 3개 (MessageCard · Combobox · TokenUsageCard) · renderers 8개 (status · connections · admin · settings · reports · profile · i18n · telegram-modal) + task-renderer 보조 1개 매핑 완료 | locales 4언어 (ko · en · id · th)*
+*총 줄 수: 약 480줄 | components 2개 (MessageCard · TokenUsageCard) · renderers 8개 (status · connections · admin · settings · reports · profile · i18n · telegram-modal) + task-renderer 보조 1개 매핑 완료 | locales 4언어 (ko · en · id · th)*
