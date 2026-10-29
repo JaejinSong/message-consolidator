@@ -5,10 +5,13 @@ tool=$(jq -r '.tool_name // ""' <<<"$input")
 path=$(jq -r '.tool_input.file_path // .tool_input.relative_path // ""' <<<"$input")
 [ -z "$path" ] && exit 0
 
+# Why: db/ also holds hand-written files (proposals.sql.go), so the sqlc header decides, not the path.
 case "$path" in
   db/*.go|*/db/*.go)
-    echo "BLOCKED: $path is sqlc output (db/*.go). Edit store/queries/*.sql and run 'sqlc generate'." >&2
-    exit 2 ;;
+    if [ -f "$path" ] && head -1 "$path" | grep -q "Code generated"; then
+      echo "BLOCKED: $path is sqlc output. Edit store/queries/*.sql and run 'sqlc generate'." >&2
+      exit 2
+    fi ;;
 esac
 
 case "$path" in
