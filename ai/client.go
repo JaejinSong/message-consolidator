@@ -17,9 +17,6 @@ import (
 	"github.com/whatap/go-api/trace"
 )
 
-// providerDeepSeek keys the per-provider prompt frontmatter overrides.
-const providerDeepSeek = "deepseek"
-
 const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
 	DefaultMaxTokens = 8192
@@ -72,7 +69,6 @@ type modelSpec struct {
 // and token logging and delegates the single network call to an LLMTransport.
 type AIClient struct {
 	transport   LLMTransport
-	provider    string
 	tracePrefix string // APM step label prefix
 
 	analyze    modelSpec
@@ -124,7 +120,6 @@ func newDeepSeekClient(pc ProviderConfig) (*AIClient, error) {
 		filterModel, analysisModel, translationModel, reportModel)
 	return &AIClient{
 		transport:   t,
-		provider:    providerDeepSeek,
 		tracePrefix: "DeepSeek",
 		analyze:     modelSpec{analysisModel, ThinkOff},
 		translate:   modelSpec{translationModel, ThinkOff},
@@ -145,11 +140,11 @@ func orDefault(v, def string) string {
 }
 
 // resolveModel returns the effective model id for a stage: the prompt's per-provider
-// frontmatter model (geminiModel/deepseekModel) if declared, else the code modelSpec
+// frontmatter model (deepseekModel) if declared, else the code modelSpec
 // (which carries env overrides + hardcoded defaults as a fallback).
 func (g *AIClient) resolveModel(p *core.ParsedPrompt, spec modelSpec) string {
 	if p != nil {
-		if m := p.Meta.ModelFor(g.provider); m != "" {
+		if m := p.Meta.DeepSeekModel; m != "" {
 			return m
 		}
 	}
@@ -157,11 +152,11 @@ func (g *AIClient) resolveModel(p *core.ParsedPrompt, spec modelSpec) string {
 }
 
 // resolveThinking returns the effective thinking mode for a stage: the prompt's
-// per-provider frontmatter thinking (geminiThinking/deepseekThinking) if declared,
+// frontmatter thinking (deepseekThinking) if declared,
 // else the code modelSpec default.
 func (g *AIClient) resolveThinking(p *core.ParsedPrompt, spec modelSpec) ThinkingMode {
 	if p != nil {
-		if t := p.Meta.ThinkingFor(g.provider); t != "" {
+		if t := p.Meta.DeepSeekThinking; t != "" {
 			return parseThinkingMode(t, spec.thinking)
 		}
 	}

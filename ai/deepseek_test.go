@@ -156,8 +156,8 @@ func TestNewAIClientDeepSeekStages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAIClient(deepseek): %v", err)
 	}
-	if c.provider != providerDeepSeek || c.tracePrefix != "DeepSeek" {
-		t.Errorf("provider/prefix = %q/%q", c.provider, c.tracePrefix)
+	if c.tracePrefix != "DeepSeek" {
+		t.Errorf("prefix = %q", c.tracePrefix)
 	}
 	if c.analyze.model != deepSeekFlashModel || c.analyze.thinking != ThinkOff {
 		t.Errorf("analyze spec = %+v", c.analyze)
@@ -176,11 +176,10 @@ func TestNewAIClientDeepSeekStages(t *testing.T) {
 func TestResolveModelProviderRouting(t *testing.T) {
 	t.Parallel()
 	p := &core.ParsedPrompt{Meta: core.PromptMeta{
-		GeminiModel: "gemini-3-flash-preview", GeminiThinking: "off",
 		DeepSeekModel: deepSeekProModel, DeepSeekThinking: "on",
 	}}
 
-	ds := &AIClient{provider: providerDeepSeek, report: modelSpec{model: "ds-default", thinking: ThinkOff}}
+	ds := &AIClient{report: modelSpec{model: "ds-default", thinking: ThinkOff}}
 	if got := ds.resolveModel(p, ds.report); got != deepSeekProModel {
 		t.Errorf("DeepSeek must use deepseekModel, got %q", got)
 	}

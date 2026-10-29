@@ -1,8 +1,6 @@
 ---
 name: report_summary
 version: 3.4.0
-geminiModel: gemini-3-flash-preview
-geminiThinking: off
 deepseekModel: glm-5.3-flash
 deepseekThinking: on
 ---

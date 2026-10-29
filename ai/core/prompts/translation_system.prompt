@@ -1,8 +1,6 @@
 ---
 name: translation_system
 version: 1.2.0
-geminiModel: gemini-3.1-flash-lite
-geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
 deepseekThinking: off
 ---

@@ -1,8 +1,6 @@
 ---
 name: completion_check
 version: 2.10.0
-geminiModel: gemini-3-flash-preview
-geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
 deepseekThinking: on
 ---

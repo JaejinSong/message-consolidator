@@ -28,7 +28,6 @@ func (f *transitionFakeTransport) Generate(_ context.Context, req LLMRequest, _ 
 
 func transitionTestClient(f *transitionFakeTransport) *AIClient {
 	return &AIClient{
-		provider:    providerDeepSeek,
 		transport:   f,
 		tracePrefix: "DeepSeek",
 		transition:  modelSpec{"ds-default", ThinkOn},

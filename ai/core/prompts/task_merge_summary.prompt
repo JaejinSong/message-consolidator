@@ -1,8 +1,6 @@
 ---
 name: task_merge_summary
 version: 1.2.0
-geminiModel: gemini-3-flash-preview
-geminiThinking: default
 deepseekModel: deepseek-v4.1-flash
 deepseekThinking: off
 ---

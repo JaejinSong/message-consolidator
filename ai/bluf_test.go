@@ -91,7 +91,6 @@ func verdictJSON(winner int, id int64, line string) string {
 func blufTestClient(f *blufFakeTransport) *AIClient {
 	return &AIClient{
 		transport:   f,
-		provider:    providerDeepSeek,
 		tracePrefix: "DeepSeek",
 		report:      modelSpec{"kimi-k3", ThinkHigh},
 	}
@@ -305,10 +304,8 @@ func TestParseThinkingMode_AcceptsHighAndMax(t *testing.T) {
 }
 
 func TestBLUFPanel_ExcludesTheJudgeModel(t *testing.T) {
-	f := &blufFakeTransport{}
-	g := blufTestClient(f)
 	for _, judge := range append([]string{"kimi-k3"}, blufPanelModels...) {
-		panel := g.blufPanel(nil, judge)
+		panel := blufPanel(judge)
 		for _, m := range panel {
 			if m == judge {
 				t.Errorf("judge %q appeared in its own panel %v", judge, panel)

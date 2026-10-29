@@ -26,8 +26,7 @@ import (
 // signal. minimax-m3 was dropped as the slowest arm (51s vs 17-23s on 2026-10-19).
 var blufPanelModels = []string{"deepseek-v4.1-flash", "glm-5.3"}
 
-// blufPanelTemps spreads sampling across panel slots. It is what produces divergence on the
-// Gemini path, where the panel collapses onto the single frontmatter model.
+// blufPanelTemps spreads sampling across panel slots.
 var blufPanelTemps = []float64{0.15, 0.45, 0.75}
 
 const (
@@ -138,7 +137,7 @@ func (g *AIClient) nominateBLUF(ctx context.Context, email, candidates, window, 
 		logger.Warnf("[BLUF] nominate prompt render failed: %v", err)
 		return nil, nil
 	}
-	models := g.blufPanel(parsed, judgeModel)
+	models := blufPanel(judgeModel)
 	out := make([]*blufNomination, len(models))
 
 	var wg sync.WaitGroup
@@ -231,18 +230,12 @@ func (g *AIClient) judgeBLUF(ctx context.Context, email, candidates, window stri
 	return v, nil
 }
 
-// blufPanel returns the model id per panel slot. The DeepSeek/Ollama path runs the real
-// multi-model panel; every other provider repeats its own frontmatter model, so divergence
-// comes from blufPanelTemps alone.
+// blufPanel returns the model id per panel slot.
 //
 // The judge model is filtered out. Why: a judge that also nominated is grading its own work,
 // which is the one property arbitration exists to avoid -- and nothing else would catch the
 // overlap, since a nomination and a verdict are told apart only by which call produced them.
-func (g *AIClient) blufPanel(parsed *core.ParsedPrompt, judgeModel string) []string {
-	if g.provider != providerDeepSeek {
-		model := g.resolveModel(parsed, g.report)
-		return []string{model, model, model}
-	}
+func blufPanel(judgeModel string) []string {
 	panel := make([]string, 0, len(blufPanelModels))
 	for _, m := range blufPanelModels {
 		if m == judgeModel {

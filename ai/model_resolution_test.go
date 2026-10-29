@@ -36,7 +36,7 @@ func TestResolveModelThinking(t *testing.T) {
 		{"lite_filter", core.PromptLiteFilter, modelSpec{model: "", thinking: ThinkDefault}, want{"deepseek-v4.1-flash", ThinkOff}},
 	}
 
-	ds := &AIClient{provider: providerDeepSeek}
+	ds := &AIClient{}
 
 	for _, tc := range cases {
 		tc := tc

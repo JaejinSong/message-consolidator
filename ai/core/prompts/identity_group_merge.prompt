@@ -1,8 +1,6 @@
 ---
 name: identity_group_merge
 version: 1.3.0
-geminiModel: gemini-3-flash-preview
-geminiThinking: on
 deepseekModel: deepseek-v4.1-flash
 deepseekThinking: on
 ---
