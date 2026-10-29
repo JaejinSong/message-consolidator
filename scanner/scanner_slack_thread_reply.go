@@ -44,8 +44,7 @@ func (b *threadReplyBudget) take() bool {
 }
 
 // BuildThreadCompletionEnvelope builds the ConsolidatedMessage envelope EvaluateThreadReply
-// evaluates for one Slack thread reply. Exported so cmd/reassess-slack-backlog reuses the
-// exact same builder the sweep uses instead of maintaining a second, divergent one.
+// evaluates for one Slack thread reply.
 //
 // Why: the live-scan sibling (dispatchSlackThreadedCompletion) propagates the full
 // envelope; the sweeper left Room empty and validateTargetTask rejects a blank Room

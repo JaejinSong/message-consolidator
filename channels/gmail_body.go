@@ -20,10 +20,6 @@ var (
 // extractBody's MIME-part walk, then cleanEmailBody's signature/quote stripping.
 // Exported so cmd/reassess-gmail-backlog can reuse the scanner's body extraction
 // instead of re-implementing it against a differently-shaped Gmail API response.
-func ExtractCleanBody(payload *gmail.MessagePart) string {
-	return cleanEmailBody(extractBody(payload))
-}
-
 func extractBody(payload *gmail.MessagePart) string {
 	if payload == nil {
 		return ""
