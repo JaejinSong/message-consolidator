@@ -7,9 +7,7 @@ import (
 )
 
 func TestGuardAndBuild_KeptItemReturnsBuiltMessage(t *testing.T) {
-	if store.GetDB() != nil {
-		t.Skip("skipping: DB connection present, test assumes nil DB path")
-	}
+	requireNilDB(t)
 	p := TaskBuildParams{
 		UserEmail:    "user@example.com",
 		OriginalText: "Please send the report by Friday",
@@ -31,9 +29,7 @@ func TestGuardAndBuild_KeptItemReturnsBuiltMessage(t *testing.T) {
 }
 
 func TestGuardAndBuild_DroppedItemReturnsDropReason(t *testing.T) {
-	if store.GetDB() != nil {
-		t.Skip("skipping: DB connection present, test assumes nil DB path")
-	}
+	requireNilDB(t)
 	p := TaskBuildParams{
 		UserEmail:    "user@example.com",
 		OriginalText: "Completely unrelated chit chat about the weather",
