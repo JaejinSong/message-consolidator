@@ -91,11 +91,17 @@ func main() {
 	api.Digest = scanner.TriggerDigest
 	api.WeeklyDispatch = scanner.TriggerWeeklyReport
 
-	srv := setupApp(ctx, cfg, api)
+	srv, scannerDone := setupApp(ctx, cfg, api)
 
 	waitForShutdownSignal()
-	cancel()
-	gracefulShutdown(srv)
+	runShutdown(shutdownSteps{
+		drainHTTP:         drainServer(srv),
+		cancelBackground:  cancel,
+		backgroundDone:    scannerDone,
+		disconnectClients: disconnectClients,
+		flush:             flushInMemoryData,
+		closeDB:           closeDB,
+	}, shutdownBudget)
 }
 
 // Why: Diagnoses DSN-modifying env vars (TURSO_*/WHATAP_*) at boot. Secrets masked.
@@ -174,49 +180,95 @@ func waitForShutdownSignal() {
 	<-quit
 }
 
-// Why: Runs disconnect, flush, HTTP drain, and DB close concurrently so one slow dependency cannot stall the others.
-func gracefulShutdown(srv *http.Server) {
+// Why: One budget shared by HTTP drain and scanner wait; prime seconds per project preference, just above the former 30s.
+const shutdownBudget = 31 * time.Second
+
+// shutdownSteps injects each teardown action so runShutdown ordering is testable without real clients.
+type shutdownSteps struct {
+	drainHTTP         func(ctx context.Context) error
+	cancelBackground  func()
+	backgroundDone    <-chan struct{}
+	disconnectClients func()
+	flush             func()
+	closeDB           func()
+}
+
+// Why: cancel first so ctx-bound handlers and scanner loops unwind during the drain; clients disconnect only after both are done.
+func runShutdown(steps shutdownSteps, budget time.Duration) {
 	logger.Infof("[SHUTDOWN] shutting down server gracefully...")
 	shutdownStart := time.Now()
 
+	budgetCtx, cancelBudget := context.WithTimeout(context.Background(), budget)
+	defer cancelBudget()
+
+	logger.Infof("[SHUTDOWN] 1/5 Stopping background workers...")
+	steps.cancelBackground()
+
+	logger.Infof("[SHUTDOWN] 2/5 Waiting for active HTTP requests to finish (Max %v)...", budget)
+	if err := steps.drainHTTP(budgetCtx); err != nil {
+		logger.Errorf("[SHUTDOWN] server shutdown error: %v", err)
+	}
+
+	logger.Infof("[SHUTDOWN] 3/5 Waiting for background workers to finish...")
+	select {
+	case <-steps.backgroundDone:
+	case <-budgetCtx.Done():
+		logger.Warnf("[SHUTDOWN] timeout waiting for background workers; continuing shutdown.")
+	}
+
+	logger.Infof("[SHUTDOWN] 4/5 Disconnecting external clients and flushing in-memory data...")
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		defer safego.Recover("shutdown-disconnect")
-		logger.Infof("[SHUTDOWN] 1/4 Disconnecting external clients (WhatsApp, Telegram)...")
-		channels.DisconnectAllWhatsApp()
-		channels.DisconnectAllTelegram()
+		steps.disconnectClients()
 	}()
 	go func() {
 		defer wg.Done()
 		defer safego.Recover("shutdown-flush")
-		logger.Infof("[SHUTDOWN] 2/4 Flushing in-memory data to Database...")
-		if err := store.FlushTokenUsage(context.Background()); err != nil {
-			logger.Errorf("[SHUTDOWN] failed to flush token usage: %v", err)
-		}
-		store.FlushAllScanMetadata()
-		logger.Infof("[SHUTDOWN] In-memory data flushed successfully.")
+		steps.flush()
 	}()
 	wg.Wait()
 
-	logger.Infof("[SHUTDOWN] 3/4 Waiting for active HTTP requests to finish (Max 30s)...")
-	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancelTimeout()
-	if err := srv.Shutdown(ctxTimeout); err != nil {
-		logger.Errorf("[SHUTDOWN] server shutdown error: %v", err)
-	}
-
-	if db := store.GetDB(); db != nil {
-		logger.Infof("[SHUTDOWN] 4/4 Closing database connections...")
-		db.Close()
-	}
+	logger.Infof("[SHUTDOWN] 5/5 Closing database connections...")
+	steps.closeDB()
 
 	logger.Infof("[SHUTDOWN] server exited. total shutdown time: %v", time.Since(shutdownStart))
 }
 
+// Why: Shutdown only stops accepting and waits; on budget expiry Close force-drops lingering connections.
+func drainServer(srv *http.Server) func(context.Context) error {
+	return func(ctx context.Context) error {
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			_ = srv.Close()
+		}
+		return err
+	}
+}
+
+func disconnectClients() {
+	channels.DisconnectAllWhatsApp()
+	channels.DisconnectAllTelegram()
+}
+
+func flushInMemoryData() {
+	if err := store.FlushTokenUsage(context.Background()); err != nil {
+		logger.Errorf("[SHUTDOWN] failed to flush token usage: %v", err)
+	}
+	store.FlushAllScanMetadata()
+	logger.Infof("[SHUTDOWN] In-memory data flushed successfully.")
+}
+
+func closeDB() {
+	if db := store.GetDB(); db != nil {
+		db.Close()
+	}
+}
+
 // Why: Encapsulates the wiring of external services, background workers, and HTTP routes to provide a testable, fully configured server instance.
-func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.Server {
+func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) (*http.Server, <-chan struct{}) {
 	waDBLogger := services.NewWADBLogger()
 	waDBLogger.ChatNameResolver = channels.DefaultWAManager.GetGroupName
 	waNotionLogger := services.NewWANotionLogger(cfg.NotionToken, cfg.NotionWALogPageID) //nolint:contextcheck // whataphttpx.Client takes no ctx by design; trace rides on http.Request.Context (see package doc)
@@ -239,7 +291,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 	auth.SetupOAuth(cfg)
 	channels.SetupGmailOAuth(cfg)
 
-	go scanner.StartBackgroundScanner(ctx)
+	scannerDone := scanner.StartBackgroundScanner(ctx)
 
 	//Why: Registers all application endpoints to the HTTP router, enabling public and private access points.
 	r := mux.NewRouter()
@@ -263,7 +315,7 @@ func setupApp(ctx context.Context, cfg *config.Config, api *handlers.API) *http.
 		}
 	}()
 
-	return srv
+	return srv, scannerDone
 }
 
 // Why: WhatsApp IoC hooks injected before client boot — UpdateUserWAJID writes back via Background ctx because OnConnected/OnLoggedOut fire from manager goroutines outlasting the boot ctx.
@@ -323,7 +375,7 @@ func wireTelegramHooks(ctx context.Context) {
 	}
 }
 
-// Why: Init*X owns its own long-lived client lifecycle (teardown via DisconnectAllX in gracefulShutdown), so it intentionally outlives the boot ctx.
+// Why: Init*X owns its own long-lived client lifecycle (teardown via DisconnectAllX in runShutdown), so it intentionally outlives the boot ctx.
 func bootChannelClients(ctx context.Context, cfg *config.Config) {
 	users, _ := store.GetAllUsers(ctx)
 	for _, u := range users {

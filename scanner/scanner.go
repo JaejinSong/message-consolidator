@@ -56,7 +56,8 @@ type scanDeps struct {
 
 var deps scanDeps
 
-func StartBackgroundScanner(ctx context.Context) {
+// Why: non-blocking so the caller owns the shutdown budget; the returned channel closes once ctx is done and every loop has returned.
+func StartBackgroundScanner(ctx context.Context) <-chan struct{} {
 	logger.Infof("[SCAN] background scanner started (second-cadence=%v hour-cadence=%v)", primes.Seconds, hourPrimePool)
 
 	var wg sync.WaitGroup
@@ -90,22 +91,16 @@ func StartBackgroundScanner(ctx context.Context) {
 		go l.start(ctx, &wg, first)
 	}
 
-	<-ctx.Done()
-	logger.Infof("[SCAN] shutdown signal received; waiting for in-flight tasks...")
-
-	//Why: Generous timeout allows AI-intensive scans and translations (15-20s) to complete before termination.
 	done := make(chan struct{})
 	go func() {
 		defer safego.Recover("scanner-wg-sentinel")
+		defer close(done)
+		<-ctx.Done()
+		logger.Infof("[SCAN] shutdown signal received; waiting for in-flight tasks...")
 		wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
 		logger.Infof("[SCAN] all background tasks finished gracefully.")
-	case <-time.After(30 * time.Second):
-		logger.Warnf("[SCAN] timeout waiting for background tasks; forcing exit.")
-	}
+	}()
+	return done
 }
 
 func RunAllScans(ctx context.Context, wg *sync.WaitGroup) {

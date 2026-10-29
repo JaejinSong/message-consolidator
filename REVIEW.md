@@ -2,7 +2,7 @@
 
 - 검토일: 2026-10-28 (KST)
 - 기준 커밋: `d038b08b68d15221f66f1fa048e09a36c0ff4e8a`
-- 상태: **초기 정적 리뷰 완료 / 교차검토 반영 / R1·R2 일부 구현(S1·S2) / 나머지 미착수**
+- 상태: **초기 정적 리뷰 완료 / 교차검토 반영 / R1·R2 일부 구현(S1·S2) / R3 부분 구현 / 나머지 미착수**
 - 교차검토: 2026-10-29 (정적 코드 대조, 기준 HEAD `b940e4f`. 이 문서 외 코드는 `d038b08`과 동일)
 - 목적: 이후 상세 리뷰에서 코드 근거, 미확인 사항, 최소 개선 범위를 이어서 확인합니다.
 
@@ -24,7 +24,7 @@ Serena 심볼·참조와 실제 호출 경로를 근거로 검토했습니다. �
 | --- | --- | --- | --- | --- |
 | R1 | 높음 | subtask 변경의 트랜잭션 경계 | 코드 리뷰 발견 후 호출 인수 재확인 | 구현됨(원격 libsql 검증 대기) |
 | R2 | 높음 | commit과 캐시 무효화·갱신의 순서 | 코드 리뷰 발견 | 부분 구현(S5 보류) |
-| R3 | 높음 | 종료 절차의 소유권과 작업 대기 | 아키텍처 리뷰 발견 | Open |
+| R3 | 높음 | 종료 절차의 소유권과 작업 대기 | 아키텍처 리뷰 발견 | 부분 구현(잔여 Open은 구현 기록 참조) |
 | R4 | 중간 | 완료 규칙과 화면 반영 경로 분산 | 두 리뷰 공통 발견 | Open |
 | R5 | 중간 | AI 서비스 중복 조립과 초기화 실패 범위 | 두 리뷰 공통 발견 | Open |
 | R6 | 중간 | 프런트 완료 명령과 렌더링 중복 | 아키텍처 리뷰 발견 | Open |
@@ -144,10 +144,22 @@ scanner 완료 채널 또는 명시적인 `Wait`를 상위 호출자에 제공�
 
 - [ ] 진행 중 HTTP 요청과 scanner 작업이 있는 상태에서 종료 순서를 기록합니다.
 - [ ] 최종 flush 이후 쓰기 및 DB close 이후 접근이 없는지 확인합니다.
-- [ ] 전체 종료 시간 제한과 강제 종료 정책을 확인합니다.
+- [x] 전체 종료 시간 제한과 강제 종료 정책을 확인합니다. (공유 예산 31초, drain 실패 시 `srv.Close()`)
 - [ ] 외부 클라이언트 disconnect와 작업 취소 간 의존성을 확인합니다.
 
 변경 비용은 중간입니다.
+
+### 구현 기록
+
+- 구현: `StartBackgroundScanner`가 비차단이 되어 모든 루프 종료 시 닫히는 `<-chan struct{}`를 반환하고, 내부 30초 타임아웃은 제거했습니다([scanner/scanner.go](scanner/scanner.go)). [main.go](main.go)의 `runShutdown`이 순서를 소유합니다: `cancel()` → HTTP drain(drain 실패 시 `srv.Close()`) → scanner 대기 → 연결 해제·flush(병렬) → `db.Close()`. drain과 scanner 대기는 하나의 예산(`shutdownBudget` 31초)을 공유하고, 예산이 소진돼도 마지막 두 단계는 항상 실행합니다.
+- 순서 편차: 교차검토 제안은 `srv.Shutdown`을 먼저 두었으나, `RunAllScans(ctx)` 클로저처럼 메인 ctx를 쓰는 핸들러가 예산을 모두 소진하면 scanner 대기 시간이 0이 되므로(코드 리뷰 HIGH) `cancel()`을 drain 앞에 두었습니다. 이는 변경 전 동작과 같고 scanner 정리가 drain과 병행됩니다.
+- 테스트: [main_shutdown_test.go](main_shutdown_test.go) 5개(순서, background 대기, 미종료 채널의 예산 만료, drain 오류, cancel 선행), [scanner/scanner_shutdown_test.go](scanner/scanner_shutdown_test.go) 3개. `-race` 통과.
+- Open(미착수, 코드 리뷰 지적):
+  - Slack·completion의 detached goroutine(`WithoutCancel` + 293초)이 scanner `wg` 밖이라 `done`에 포함되지 않습니다.
+  - Telegram `DisconnectAll`이 `runClient` 종료를 기다리지 않고, WhatsApp 이벤트 핸들러(`dbLogger.Receive`, `UpdateUserWAJID`)가 `db.Close()` 이후에도 쓸 수 있습니다.
+  - notion-wa logger의 최종 flush가 `db.Close()`와 경합하고, `HandleManualScan`의 untracked goroutine이 있습니다.
+  - `scanner_shutdown_test.go`는 첫 tick이 panic으로 끝나도 통과하므로 "진행 중 루프를 기다린다"는 동작을 검증하지 못합니다. 루프 목록 주입 구조가 필요합니다.
+  - 전체 종료 시간은 최악 약 31초 + WA 2초 + flush이며 `docker-compose.yml`의 `stop_grace_period: 1m` 안입니다. `flush`에는 타임아웃이 없습니다(기존과 동일).
 
 ## R4. 완료 규칙과 화면 반영 경로 분산
 
