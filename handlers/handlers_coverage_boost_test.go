@@ -183,9 +183,9 @@ func TestHandleToggleSubtask_WithDB(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
 	api.HandleToggleSubtask(rr, req)
-	// May return 200 (success) or 500 (store error on empty subtasks) — both are non-400.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	// Why: message 55 has no subtasks, so index 0 is out of range and the store rejects the update.
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 body=%s", rr.Code, rr.Body.String())
 	}
 }
 
@@ -208,9 +208,9 @@ func TestHandleUnlinkAccount_WithDB(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
 	api.HandleUnlinkAccount(rr, req)
-	// Unknown contact ID returns 200 (no-op) or 500; not 400.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	// Why: unlinking an unknown contact is an idempotent no-op.
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 body=%s", rr.Code, rr.Body.String())
 	}
 }
 
@@ -233,9 +233,9 @@ func TestHandleLinkAccounts_DifferentIDs_WithDB(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
 	api.HandleLinkAccounts(rr, req)
-	// Unknown IDs → store error → 500; self-link guard was bypassed (200 impossible here).
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	// Why: neither contact exists, so the store link fails after the self-link guard passes.
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 body=%s", rr.Code, rr.Body.String())
 	}
 }
 

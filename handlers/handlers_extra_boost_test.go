@@ -131,9 +131,9 @@ func TestHandleRestoreGmailCC_NoToken(t *testing.T) {
 	req := NewMockRequest("POST", "/api/actions/restore-gmail-cc", email)
 	rr := httptest.NewRecorder()
 	api.HandleRestoreGmailCC(rr, req)
-	// GetGmailService returns error (no token) → handleAPIError → 500.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	// Why: GetGmailService fails without a stored token and handleAPIError maps it to 500.
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 body=%s", rr.Code, rr.Body.String())
 	}
 }
 
@@ -148,9 +148,9 @@ func TestHandleTelegramAuthStart_WithPhone(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), "u@x.io"))
 	rr := httptest.NewRecorder()
 	api.HandleTelegramAuthStart(rr, req)
-	// StartTelegramAuth fails (no client initialized) → 500 or 503.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	// Why: no Telegram client is initialized in tests, so StartTelegramAuth fails with 500.
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500 body=%s", rr.Code, rr.Body.String())
 	}
 }
 

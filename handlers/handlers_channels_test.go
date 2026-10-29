@@ -266,11 +266,10 @@ func TestHandleTelegramAuthPassword_BadJSON(t *testing.T) {
 func TestHandleSlackEvent_NoBotOrSecret(t *testing.T) {
 	tests := []struct {
 		name   string
-		bot    *servicesStub
 		secret string
 	}{
-		{"nil bot and no secret", nil, ""},
-		{"nil bot with secret", nil, "signing-secret"},
+		{"nil bot and no secret", ""},
+		{"nil bot with secret", "signing-secret"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -284,10 +283,6 @@ func TestHandleSlackEvent_NoBotOrSecret(t *testing.T) {
 		})
 	}
 }
-
-// servicesStub is a placeholder type used to document why we don't instantiate
-// *services.SlackBot (requires external Slack API credentials).
-type servicesStub struct{}
 
 func TestHandleSlackInteractive_NoBotOrSecret(t *testing.T) {
 	t.Parallel()
