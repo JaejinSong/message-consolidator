@@ -191,12 +191,15 @@ func TestHandleSlackCommand_ValidCommand(t *testing.T) {
 // when Bot and signing secret are both non-nil/non-empty.
 func TestRegisterSlackBotRoutes_RegisteredWhenConfigured(t *testing.T) {
 	t.Parallel()
-	secret := "signing-secret"
 	api := &API{
-		Config: &config.Config{SlackSigningSecret: secret},
+		Config: &config.Config{SlackSigningSecret: "signing-secret"},
 		Bot:    &services.SlackBot{},
 	}
-	// Just verifying registerSlackBotRoutes doesn't panic with a valid config.
 	r := mux.NewRouter()
 	api.registerSlackBotRoutes(r)
+	for _, path := range []string{"/api/slack/events", "/api/slack/interactive", "/api/slack/commands"} {
+		if !r.Match(httptest.NewRequest("POST", path, nil), &mux.RouteMatch{}) {
+			t.Errorf("POST %s not registered", path)
+		}
+	}
 }

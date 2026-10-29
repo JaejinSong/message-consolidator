@@ -41,9 +41,19 @@ func TestTelegramAdapter_GetGroupName(t *testing.T) {
 }
 
 // TestWhatsAppAdapter_GetGroupName mirrors the telegram case.
+// Why: with no WhatsApp client for the account the room key falls back to its user part; an unparseable key is returned as is.
 func TestWhatsAppAdapter_GetGroupName(t *testing.T) {
-	got := (whatsAppAdapter{}).GetGroupName("none@x", "12345@g.us")
-	_ = got
+	cases := []struct{ name, roomKey, want string }{
+		{"group jid without client", "12345@g.us", "12345"},
+		{"key without server part", "nodomain", "nodomain"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (whatsAppAdapter{}).GetGroupName("none@x", tc.roomKey); got != tc.want {
+				t.Errorf("GetGroupName(%q) = %q, want %q", tc.roomKey, got, tc.want)
+			}
+		})
+	}
 }
 
 // TestPrepareSlackUserAliases_WithDB verifies it handles a real DB user.

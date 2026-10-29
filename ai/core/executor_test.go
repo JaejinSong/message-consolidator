@@ -30,16 +30,6 @@ func TestExecutePromptRendering(t *testing.T) {
 	}
 }
 
-func TestExtractionContextTypeSafety(t *testing.T) {
-	t.Parallel()
-	// ExtractionContext 구조체가 정상적으로 정의되었는지 확인
-	_ = ExtractionContext{
-		MessagePayload: "test payload",
-		CurrentTime:    "2026-04-03",
-		Locale:         "en-US",
-	}
-}
-
 func TestLimitFewShots(t *testing.T) {
 	t.Parallel()
 	ctx := &ExtractionContext{

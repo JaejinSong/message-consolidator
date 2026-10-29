@@ -146,22 +146,3 @@ func TestHandleExportExcel_EmptyArchive(t *testing.T) {
 
 // TestWriteExcelArchiveSheet_WithMessages verifies writeExcelArchiveSheet populates
 // rows without panic.
-func TestWriteExcelArchiveSheet_WithMessages(t *testing.T) {
-	t.Parallel()
-	// Why: exercises writeExcelArchiveSheet + writeExcelArchiveRow together
-	// without going through the full HTTP handler.
-	ts := time.Now()
-	msgs := []store.ConsolidatedMessage{
-		{
-			ID: store.MessageID(1), Source: "slack", Room: "general",
-			Task: "Fix bug", Requester: "alice", Assignee: "bob",
-			AssignedAt: ts, CreatedAt: ts, CompletedAt: nil, OriginalText: "raw",
-		},
-	}
-	// Use handleExportExcel indirectly via the WriteExcelArchiveSheet call.
-	// We use the test DB path instead to exercise the full handler stack.
-	_ = msgs
-	// Directly call writeExcelArchiveSheet with a fresh file.
-	// To use excelize here we import via the already-available type in production code.
-	// Verified by TestHandleExportExcel_EmptyArchive (handler path).
-}

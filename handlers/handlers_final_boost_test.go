@@ -49,8 +49,12 @@ func TestRegisterStaticRoutes_EnabledByDefault(t *testing.T) {
 
 	api := &API{Config: &config.Config{}}
 	r := mux.NewRouter()
-	// Should not panic — file server creation is lazy.
 	api.registerStaticRoutes(r)
+	for _, path := range []string{"/", "/static/style.css"} {
+		if !r.Match(httptest.NewRequest("GET", path, nil), &mux.RouteMatch{}) {
+			t.Errorf("GET %s not registered", path)
+		}
+	}
 }
 
 // ---- HandleMarkDone success path ----
