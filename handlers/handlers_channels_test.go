@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"message-consolidator/channels"
 	"message-consolidator/config"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/oauth2"
 )
 
 // ---- WhatsApp ----
@@ -166,10 +169,33 @@ func TestHandleGmailCallback_InvalidState(t *testing.T) {
 	}
 }
 
-// TestHandleGmailConnect_Redirect skipped — GetGmailAuthURL panics when oauth2 config
-// is nil (not initialized in test env). Covered implicitly by integration tests.
+// TestHandleGmailConnect_Redirect verifies the connect handler redirects to the consent URL carrying the user-scoped state.
 func TestHandleGmailConnect_Redirect(t *testing.T) {
-	t.Skip("BUG: GetGmailAuthURL panics when channels package oauth2 config uninitialized; skip to avoid panic in unit test")
+	withGmailOAuthConfig(t, "")
+	api := &API{}
+	rr := httptest.NewRecorder()
+	api.HandleGmailConnect(rr, NewMockRequest("GET", "/auth/gmail/connect", "u@x.io"))
+	if rr.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status = %d, want 307", rr.Code)
+	}
+	loc := rr.Header().Get("Location")
+	for _, want := range []string{"client_id=test-client", "state=gmail%3Au%40x.io", "access_type=offline"} {
+		if !strings.Contains(loc, want) {
+			t.Errorf("redirect %q missing %q", loc, want)
+		}
+	}
+}
+
+// Why: GmailOAuthConfig is a package global that only SetupGmailOAuth fills at boot; tests install and restore it.
+func withGmailOAuthConfig(t *testing.T, tokenURL string) {
+	t.Helper()
+	orig := channels.GmailOAuthConfig
+	channels.GmailOAuthConfig = &oauth2.Config{
+		ClientID:    "test-client",
+		RedirectURL: "http://localhost/auth/gmail/callback",
+		Endpoint:    oauth2.Endpoint{AuthURL: "https://accounts.google.com/o/oauth2/auth", TokenURL: tokenURL},
+	}
+	t.Cleanup(func() { channels.GmailOAuthConfig = orig })
 }
 
 // ---- Telegram ----

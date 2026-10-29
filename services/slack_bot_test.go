@@ -1,6 +1,8 @@
 package services
 
 import (
+	"errors"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"strings"
 	"testing"
@@ -132,12 +134,42 @@ func TestBuildTaskListBlocks_OwnerName(t *testing.T) {
 	}
 }
 
-// TestResolveUserByName_Logic documents expected matching behavior.
-// Integration coverage is in store/grant_store_test.go.
-// The actual dispatch integration (HandleDMText → resolveUserByName → IsGrantedToView)
-// requires a real DB and is omitted from the unit test suite.
+// TestResolveUserByName_Logic verifies email/name matching and the not-found / ambiguous outcomes.
 func TestResolveUserByName_Logic(t *testing.T) {
-	t.Skip("resolveUserByName requires store.GetAllUsers (DB); see store/grant_store_test.go")
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	t.Cleanup(cleanup)
+	for _, u := range [][2]string{{"alice@x.io", "Alice"}, {"sam1@x.io", "Sam"}, {"sam2@x.io", "Sam"}} {
+		if _, err := store.GetOrCreateUser(t.Context(), u[0], u[1], ""); err != nil {
+			t.Fatalf("create user %s: %v", u[0], err)
+		}
+	}
+
+	cases := []struct {
+		name      string
+		query     string
+		wantEmail string
+		wantErr   error
+	}{
+		{"email match is case-insensitive", "ALICE@X.IO", "alice@x.io", nil},
+		{"display name match is case-insensitive", "alice", "alice@x.io", nil},
+		{"unknown name", "nobody", "", errUserNotFound},
+		{"duplicate display name is ambiguous", "sam", "", errUserAmbiguous},
+	}
+	bot := &SlackBot{}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			u, _, err := bot.resolveUserByName(t.Context(), tc.query)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr == nil && u.Email != tc.wantEmail {
+				t.Errorf("email = %s, want %s", u.Email, tc.wantEmail)
+			}
+		})
+	}
 }
 
 func hasPaginationActionBlock(blocks []slack.Block) bool {

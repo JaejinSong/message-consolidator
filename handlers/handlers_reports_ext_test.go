@@ -2,11 +2,34 @@ package handlers
 
 import (
 	"encoding/json"
+	"message-consolidator/config"
+	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 )
+
+func seedReport(t *testing.T, email string) store.ReportID {
+	t.Helper()
+	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
+	if err != nil {
+		t.Fatalf("setup db: %v", err)
+	}
+	t.Cleanup(cleanup)
+	if _, err := store.GetOrCreateUser(t.Context(), email, "Owner", ""); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	id, err := store.SaveReport(t.Context(), &store.Report{
+		UserEmail: email, StartDate: "2024-06-01", EndDate: "2024-06-07", Visualization: "{}",
+	})
+	if err != nil {
+		t.Fatalf("save report: %v", err)
+	}
+	return id
+}
 
 // TestRespondWithReportStatus covers both status branches.
 func TestRespondWithReportStatus(t *testing.T) {
@@ -90,25 +113,46 @@ func TestParseGenerateReportParams(t *testing.T) {
 
 // TestHandleDeleteReport_Success seeds a real report row to exercise the happy path.
 func TestHandleDeleteReport_Success(t *testing.T) {
-	// Why: testutil uses an in-memory SQLite; store.InsertReport lets us create a real row.
-	// Skipping DB setup here to avoid dependency on internal insert helpers — the 400/404
-	// paths (already tested) give the relevant guard coverage.
-	t.Skip("success path requires a seeded Report row; covered by 404 guard tests")
+	id := seedReport(t, "u@x.io")
+	api := &API{}
+	req := withReportID(httptest.NewRequest("DELETE", "/api/reports/x", nil), strconv.FormatInt(int64(id), 10), "u@x.io")
+	rr := httptest.NewRecorder()
+	api.HandleDeleteReport(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", rr.Code, rr.Body.String())
+	}
+	if _, err := store.GetReportByID(t.Context(), id, "u@x.io"); err == nil {
+		t.Error("report still exists after delete")
+	}
 }
 
 // TestHandleGetReportByID_OwnerSuccess seeds a real report and verifies the 200 path.
 func TestHandleGetReportByID_OwnerSuccess(t *testing.T) {
-	t.Skip("requires seeded Report row with matching user_email; guard paths already tested")
+	id := seedReport(t, "u@x.io")
+	api := &API{}
+	idStr := strconv.FormatInt(int64(id), 10)
+
+	rr := httptest.NewRecorder()
+	api.HandleGetReportByID(rr, withReportID(httptest.NewRequest("GET", "/api/reports/x", nil), idStr, "u@x.io"))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("owner status = %d, want 200 body=%s", rr.Code, rr.Body.String())
+	}
+	var got store.Report
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.ID != id || got.StartDate != "2024-06-01" || got.EndDate != "2024-06-07" {
+		t.Errorf("report = %+v, want id=%d 2024-06-01..2024-06-07", got, id)
+	}
+
+	rr = httptest.NewRecorder()
+	api.HandleGetReportByID(rr, withReportID(httptest.NewRequest("GET", "/api/reports/x", nil), idStr, "other@x.io"))
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("foreign user status = %d, want 404", rr.Code)
+	}
 }
 
 // TestHandleListReports_JSONResponse ensures the response is a JSON array (not null/error).
-func TestHandleListReports_JSONResponse(t *testing.T) {
-	// Re-use the already-passing TestHandleListReports_EmptyUser logic as a smoke test.
-	// Coverage for the success branch is obtained via that existing test.
-	// This test validates the envelope shape more explicitly.
-	t.Parallel()
-}
-
 // TestHandleGenerateReport_SuccessInvokesService verifies 503 when Reports is nil
 // (already tested in handlers_reports_test.go). This exercises the end-to-end
 // request parsing happy path (valid start/end/lang) leading to the service check.
@@ -139,10 +183,19 @@ func TestHandleTranslateReport_ReportsNilAfterValidID(t *testing.T) {
 	}
 }
 
-// TestHandleExportReportToNotion_NotionDisabled exercises the "not configured" branch.
-// Requires a seeded matching report row, which we skip; the 404/503 guard paths cover it.
+// TestHandleExportReportToNotion_NotionDisabled exercises the "not configured" branch for an owned report.
 func TestHandleExportReportToNotion_NotionDisabled(t *testing.T) {
-	t.Skip("Notion disabled branch reached only after a valid DB report row exists")
+	id := seedReport(t, "u@x.io")
+	api := &API{Config: &config.Config{}}
+	req := withReportID(httptest.NewRequest("POST", "/api/reports/x/notion", nil), strconv.FormatInt(int64(id), 10), "u@x.io")
+	rr := httptest.NewRecorder()
+	api.HandleExportReportToNotion(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Notion integration not configured") {
+		t.Errorf("body = %s, want notion-not-configured message", rr.Body.String())
+	}
 }
 
 // TestParseGenerateReportParams_EndParam verifies end= param is passed through correctly.

@@ -8,6 +8,7 @@ import (
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -91,10 +92,24 @@ func TestHandleRejectProposal_WithDB(t *testing.T) {
 	}
 }
 
-// TestHandleGmailCallback_CodeExchangeError skipped — ExchangeGmailCode panics
-// when the channels package oauth2 Config is nil (not initialized without real credentials).
+// TestHandleGmailCallback_CodeExchangeError verifies a rejected authorization code yields 500 instead of a stored token.
 func TestHandleGmailCallback_CodeExchangeError(t *testing.T) {
-	t.Skip("BUG: ExchangeGmailCode panics on nil oauth2.Config when channels package uninitialized in test env")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
+	}))
+	defer srv.Close()
+	withGmailOAuthConfig(t, srv.URL)
+
+	api := &API{}
+	req := httptest.NewRequest("GET", "/auth/gmail/callback?state=gmail:u@x.io&code=bad", nil)
+	rr := httptest.NewRecorder()
+	api.HandleGmailCallback(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "Token exchange failed") {
+		t.Errorf("body = %s, want token exchange failure", rr.Body.String())
+	}
 }
 
 // TestHandleTelegramSetCredentials_WithDB exercises the success path (saves to DB).
