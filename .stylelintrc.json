@@ -3,5 +3,5 @@
     "color-no-hex": true,
     "unit-disallowed-list": ["px"]
   },
-  "ignoreFiles": ["static/css/variables.css", "static/css/main.bundle*.css", "static/css/*.temp", "node_modules/**", "dist/**"]
+  "ignoreFiles": ["static/css/variables.css", "node_modules/**", "dist/**"]
 }

@@ -96,7 +96,6 @@ upload_via_tar() {
 }
 
 build_fe() {
-    run_step "FE: CSS Optimize" npm run optimize:css
     # Why: --provenance=false --sbom=false drops buildx attestation manifests (~5-15MB
     # per image on registry push) — internal-use images don't need supply-chain metadata.
     run_step "FE: Build" docker buildx build --platform linux/amd64 -q \

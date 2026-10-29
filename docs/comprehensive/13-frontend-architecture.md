@@ -609,30 +609,12 @@ pollProposalJob() // MAX 72회, 5초 간격 = 최대 6분
 ### 9.3 빌드 출력
 
 ```bash
-npm run build        # vite build → dist/
-npm run optimize:css # PurgeCSS → 미사용 CSS 제거
+npm run build        # vite build → dist/ (CSS는 src/app.ts가 import하는 static/style.css로 번들)
 ```
-
-`optimize:css` 파이프라인:
-1. `node bundle-css.cjs` — CSS 파일 번들링
-2. `purgecss --config purgecss.config.cjs` — HTML/JS에서 참조되지 않는 CSS 선택자 제거
 
 ### 9.4 의존성 관리
 
-```json
-dependencies:   { "zod": "^4.3.6" }
-devDependencies: {
-  "vite": "^6.2.0",
-  "typescript": "^5.7.3",
-  "vitest": "^4.1.0",
-  "marked": "^17.0.5",
-  "@fortawesome/fontawesome-free": "^7.2.0",
-  "pretendard": "^1.3.9",
-  "purgecss": "^8.0.0"
-}
-```
-
-`zod`는 런타임 의존성(유효성 검사용). 차트 라이브러리 없이 SVG를 직접 그림 — 번들 크기 절감.
+런타임 의존성은 없고(`dependencies` 비어 있음), `devDependencies`는 [package.json](../../package.json)이 단일 출처입니다. 차트 라이브러리 없이 SVG를 직접 그림 — 번들 크기 절감.
 
 ### 9.5 테스트
 

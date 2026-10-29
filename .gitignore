@@ -28,7 +28,6 @@ channels/logs/
 node_modules/
 .vite/
 dist/
-static/css/main.bundle*
 
 # === Temporary & Test Artifacts ===
 *.swp
