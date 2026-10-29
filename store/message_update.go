@@ -170,18 +170,20 @@ func MarkMessageDone(ctx context.Context, q Querier, email string, id MessageID,
 	return markMessageDoneTrue(ctx, q, email, id)
 }
 
+// Why: shared by markMessageDoneTrue and the subtask auto-close so both keep identical side effects.
+const markDoneSetSQL = `UPDATE messages
+	SET done = 1, completed_at = ?,
+	    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
+	    confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP),
+	    updated_at = CURRENT_TIMESTAMP`
+
 // markMessageDoneTrue sets done+completed_at and clears any pending completion
 // candidate in one statement — Why: raw SQL (precedent: unmarkMessageDone) since
 // UpdateMessageDetails cannot express the json_remove; a task explicitly marked
 // done should not keep surfacing a stale confirm-first suggestion.
 func markMessageDoneTrue(ctx context.Context, q Querier, email string, id MessageID) error {
 	return withTx(ctx, q, func(qw Querier) error {
-		const stmt = `UPDATE messages
-			SET done = 1, completed_at = ?,
-			    metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.` + metaKeyCompletionCandidate + `'),
-			    confirmed_at = COALESCE(confirmed_at, CURRENT_TIMESTAMP),
-			    updated_at = CURRENT_TIMESTAMP
-			WHERE id = ? AND user_email = ?`
+		const stmt = markDoneSetSQL + ` WHERE id = ? AND user_email = ?`
 		if _, err := qw.ExecContext(ctx, stmt, time.Now(), int64(id), email); err != nil {
 			return err
 		}
@@ -263,12 +265,50 @@ func UpdateTaskText(ctx context.Context, q Querier, email string, id MessageID, 
 	})
 }
 
-// UpdateSubtaskStatus toggles the 'done' status of a specific subtask within a consolidated task.
-// Why: [Data Integrity] Loads the entire task to update the JSON subtasks array safely within a transaction.
+// Why: one json_set statement avoids lost concurrent toggles; json('true') because a bound bool is stored as 1, not a JSON boolean.
+const setSubtaskDoneSQL = `UPDATE messages
+	SET subtasks = json_set(subtasks, '$[' || ? || '].done', CASE WHEN ? THEN json('true') ELSE json('false') END)
+	WHERE id = ? AND user_email = ? AND ? BETWEEN 0 AND json_array_length(subtasks) - 1`
+
+// Why: conditional close in one statement so the all-done check sees every committed concurrent toggle.
+const closeParentIfAllSubtasksDoneSQL = markDoneSetSQL + `
+	WHERE id = ? AND user_email = ? AND done = 0 AND json_array_length(subtasks) > 0
+	  AND NOT EXISTS (SELECT 1 FROM json_each(subtasks) WHERE json_extract(value, '$.done') IS NOT 1)`
+
+// UpdateSubtaskStatus toggles the 'done' status of a specific subtask and auto-closes the parent when the last one is checked.
 func UpdateSubtaskStatus(ctx context.Context, q Querier, email string, id MessageID, subtaskIndex int, done bool) error {
-	return withTx(ctx, q, func(qw Querier) error {
-		return updateSubtaskStatusInternal(ctx, qw, email, id, subtaskIndex, done)
-	})
+	if id <= 0 {
+		return fmt.Errorf("invalid task id: %d", id)
+	}
+
+	res, err := q.ExecContext(ctx, setSubtaskDoneSQL, subtaskIndex, done, int64(id), email, subtaskIndex)
+	if err != nil {
+		return fmt.Errorf("failed to update subtasks in DB: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to read subtask update result: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("subtask %d of task %d not found or not owned", subtaskIndex, id)
+	}
+
+	if done && closeParentIfAllSubtasksDone(ctx, q, email, id) {
+		InvalidateCache(email)
+		return nil
+	}
+	InvalidateCacheActive(email)
+	return nil
+}
+
+func closeParentIfAllSubtasksDone(ctx context.Context, q Querier, email string, id MessageID) bool {
+	res, err := q.ExecContext(ctx, closeParentIfAllSubtasksDoneSQL, time.Now(), int64(id), email)
+	if err != nil {
+		logger.Warnf("[STORE] subtask auto-close parent %d: %v", id, err)
+		return false
+	}
+	n, _ := res.RowsAffected()
+	return n > 0
 }
 
 // UpdateSubtasks replaces the entire subtask list for a message.
@@ -287,65 +327,6 @@ func UpdateSubtasks(ctx context.Context, q Querier, email string, id MessageID, 
 		InvalidateCacheActive(email)
 	}
 	return err
-}
-
-func updateSubtaskStatusInternal(ctx context.Context, q Querier, email string, id MessageID, subtaskIndex int, done bool) error {
-	if id <= 0 {
-		return fmt.Errorf("invalid task id: %d", id)
-	}
-
-	queries := db.New(q)
-	msgRow, err := queries.GetMessageByID(ctx, int64(id))
-	if err != nil {
-		return fmt.Errorf("failed to fetch task: %w", err)
-	}
-
-	if msgRow.UserEmail != email {
-		return fmt.Errorf("unauthorized access to task %d", id)
-	}
-
-	_, _, _, subtasks := UnmarshalMessageComponents("", "", "", msgRow.Subtasks)
-	if subtaskIndex < 0 || subtaskIndex >= len(subtasks) {
-		return fmt.Errorf("invalid subtask index: %d (total: %d)", subtaskIndex, len(subtasks))
-	}
-
-	subtasks[subtaskIndex].Done = done
-
-	subtasksJSON, err := json.Marshal(subtasks)
-	if err != nil {
-		return fmt.Errorf("failed to marshal subtasks: %w", err)
-	}
-
-	err = queries.UpdateSubtasks(ctx, db.UpdateSubtasksParams{
-		Subtasks:  nullString(string(subtasksJSON)),
-		ID:        int64(id),
-		UserEmail: nullString(email),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update subtasks in DB: %w", err)
-	}
-
-	// Why: Reverse propagation — auto-close parent when last subtask is checked off.
-	if done && allSubtasksDone(subtasks) {
-		if err := MarkMessageDone(ctx, q, email, id, true); err != nil {
-			logger.Warnf("[STORE] subtask auto-close parent %d: %v", id, err)
-		}
-	}
-
-	InvalidateCacheActive(email)
-	return nil
-}
-
-func allSubtasksDone(subtasks []Subtask) bool {
-	if len(subtasks) == 0 {
-		return false // no subtasks → never auto-close
-	}
-	for _, s := range subtasks {
-		if !s.Done {
-			return false
-		}
-	}
-	return true
 }
 
 func UpdateMessageCategory(ctx context.Context, q Querier, email string, id MessageID, category string) error {
