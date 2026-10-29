@@ -263,7 +263,7 @@ export interface AppState {
 
 
 // Why: locale dictionaries grew organically with ~220 keys per language and a few array values
-// (glance* templates, emptyStateMessages); a strict named interface would force every UI string
+// (emptyStateMessages); a strict named interface would force every UI string
 // to be enumerated. Looser per-entry typing keeps the gain at the dictionary level (typed access
 // by lang code) without forcing exhaustive locale audits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
