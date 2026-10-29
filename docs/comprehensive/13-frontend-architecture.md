@@ -724,7 +724,7 @@ renderMessages(filtered, { skipClientSearch: true });
 5. **Insights Tab Isolation**: 기존 문서에 언급 없음.
 6. **Clean Architecture 레이어 명시**: 기존 문서는 파일별 역할표였으나, 레이어 의존 방향을 mermaid로 시각화.
 7. **Build 상세**: `optimize:css` 파이프라인, `tsconfigPaths` 이유 추가.
-8. **Smart 토글**: 없음 → 아카이브 검색에 의미 검색 토글 추가 (`archiveSemantic` 상태, `POST /api/messages/archive/semantic` 분기, 4개 언어 i18n) → 2026-07-22 임베딩 파이프라인 제거로 다시 삭제됨 (→ [21-release-history.md](21-release-history.md)).
+8. **Smart 토글**: 없음 → 아카이브 검색에 의미 검색 토글 추가 (`archiveSemantic` 상태, `POST /api/messages/archive/semantic` 분기, 4개 언어 i18n) → 2026-07-22 임베딩 파이프라인 제거로 다시 삭제됨 (→ 커밋 `227ba7f`).
 
 ### 11.2 Cross-Reference 맵
 

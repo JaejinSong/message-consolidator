@@ -419,7 +419,7 @@ erDiagram
 - **외래키**: `message_id → messages(id)` (nullable — message 생성 전 로깅 허용)
 
 #### `message_embeddings` ★ (schema v2 추가, 2026-07-22부터 dormant)
-- **책임 (레거시)**: 아카이브 메시지의 벡터 임베딩 저장. 과거 의미 검색(hybrid archive search)에 사용되었으나, 2026-07-22 임베딩 파이프라인 전체 제거로 더 이상 쓰기/읽기가 발생하지 않는다. 검색/완료 매칭은 현재 FTS5 단독 구현이다 (→ [21-release-history.md](21-release-history.md)). 테이블과 인덱스는 schema v15 그대로 보존되며, 기존 데이터는 stale 상태로 남아 있다 (drop 여부는 향후 운영 결정 사항).
+- **책임 (레거시)**: 아카이브 메시지의 벡터 임베딩 저장. 과거 의미 검색(hybrid archive search)에 사용되었으나, 2026-07-22 임베딩 파이프라인 전체 제거로 더 이상 쓰기/읽기가 발생하지 않는다. 검색/완료 매칭은 현재 FTS5 단독 구현이다 (→ 커밋 `227ba7f`). 테이블과 인덱스는 schema v15 그대로 보존되며, 기존 데이터는 stale 상태로 남아 있다 (drop 여부는 향후 운영 결정 사항).
 - **주요 컬럼**:
 
 | 컬럼 | 타입 | 설명 |

@@ -2,45 +2,44 @@
 
 **최종 갱신 / Last Updated:** 2026-05-21
 **상태 / Status:** SSOT (Single Source of Truth)
-**총 분량 / Total:** 23 챕터 + INDEX, ~12,200줄 (2026-05-21 갱신)
+**총 분량 / Total:** 22 챕터 + INDEX
 
 ## 한국어
 
-이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 23개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
+이 디렉토리는 `message-consolidator` 프로젝트의 **단일 사실 출처**입니다. 코드 위치, 도메인 모델, 데이터 계층, AI 파이프라인, 채널 어댑터, 운영 절차, 사용자 매뉴얼까지 모든 정보를 22개 챕터에 집대성했습니다. 이전 문서들(`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*` 4종)은 이 SSOT의 직전 스냅샷입니다. `docs/USER_MANUAL.md`·`knowledge/BACKEND_ARCHITECTURE.md`·`knowledge/FRONTEND_ARCHITECTURE.md`는 삭제(deleted)되었습니다. 앱 내 인터랙티브 가이드는 [`docs/user-guide/`](../../docs/user-guide/)에 위치합니다.
 
 ## English
 
-This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 23 chapters. Legacy docs (`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
+This directory is the **single source of truth** for the `message-consolidator` project. Code locations, domain model, data layer, AI pipelines, channel adapters, operations procedures, and user manual are consolidated into 22 chapters. Legacy docs (`CLAUDE.md`, `TECH.md`, `deploy.md`, `RELEASE_NOTES_*`) are prior snapshots of this SSOT. `docs/USER_MANUAL.md` and `knowledge/*.md` have been deleted. The interactive in-app guide lives at [`docs/user-guide/`](../../docs/user-guide/).
 
 ---
 
 ## 챕터 / Chapters
 
-| # | 파일 | 줄 | 한 줄 (KO) | One-liner (EN) | 핵심 코드 / Key Code |
-|---|---|---|---|---|---|
-| 00 | [overview.md](00-overview.md) | 157 | 비전·스택·아키텍처 1-pager | Vision, stack, architecture | [main.go](../../main.go), [package.json](../../package.json) |
-| 01 | [getting-started.md](01-getting-started.md) | 268 | 로컬 개발·빌드·테스트 | Local dev, build, test | [Makefile](../../Makefile), [unit-test.sh](../../unit-test.sh) |
-| 02 | [domain-model.md](02-domain-model.md) | 508 | 메시지·태스크·컨택트·리포트 모델 | Message/Task/Contact/Report model | [internal/ids/](../../internal/ids/), [db/models.go](../../db/models.go) |
-| 03 | [backend-architecture.md](03-backend-architecture.md) | 665 | DI·패키지·요청 플로우 | DI, packages, request flow | [main.go](../../main.go), [handlers/routes.go](../../handlers/routes.go) |
-| 04 | [data-layer.md](04-data-layer.md) | 720 | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
-| 05 | [channels.md](05-channels.md) | 470 | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
-| 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 391 | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
-| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | 690 | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
-| 08 | [services-business-logic.md](08-services-business-logic.md) | 840 | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
-| 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | 403 | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
-| 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 489 | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
-| 11 | [handlers-and-api.md](11-handlers-and-api.md) | 916 | 12 handler·68 라우트·미들웨어 | 12 handlers, 68 routes, middleware | [handlers/](../../handlers/) |
-| 12 | [auth-and-security.md](12-auth-and-security.md) | 466 | Google OAuth·세션·AdminMiddleware | Google OAuth, session, admin | [auth/](../../auth/) |
-| 13 | [frontend-architecture.md](13-frontend-architecture.md) | 751 | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
-| 14 | [frontend-ui-system.md](14-frontend-ui-system.md) | 519 | CSS 토큰·BEM·components·i18n | CSS tokens, BEM, components, i18n | [static/css/](../../static/css/), [src/components/](../../src/components/) |
-| 15 | [observability.md](15-observability.md) | 441 | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
-| 16 | [cli-and-tools.md](16-cli-and-tools.md) | 524 | 16 CLI 단위 (sim·verify·check·util·thinking-exp) | 16 CLI tools | [cmd/](../../cmd/) |
-| 17 | [testing-strategy.md](17-testing-strategy.md) | 386 | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
-| 18 | [build-and-deploy.md](18-build-and-deploy.md) | 639 | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
-| 19 | [user-manual.md](19-user-manual.md) | 575 | 최종 사용자 가이드 (채널 연동·FAQ) | End-user guide | (UI labels in [src/locales/](../../src/locales/)) |
-| 20 | [operations-runbook.md](20-operations-runbook.md) | 507 | 트러블슈팅 10건·사고 대응 | 10 troubleshooting scenarios | — |
-| 21 | [release-history.md](21-release-history.md) | 464 | v2.4.1~v2.4.7 통합·최근 커밋 + 2026-05-03 이후 변경 | Releases consolidated | [RELEASE_NOTES_*](../../) |
-| 99 | [glossary.md](99-glossary.md) | 313 | 40+ 용어 사전 (한/영) | 40+ term glossary (KO/EN) | — |
+| # | 파일 | 한 줄 (KO) | One-liner (EN) | 핵심 코드 / Key Code |
+|---|---|---|---|---|
+| 00 | [overview.md](00-overview.md) | 비전·스택·아키텍처 1-pager | Vision, stack, architecture | [main.go](../../main.go), [package.json](../../package.json) |
+| 01 | [getting-started.md](01-getting-started.md) | 로컬 개발·빌드·테스트 | Local dev, build, test | [Makefile](../../Makefile), [unit-test.sh](../../unit-test.sh) |
+| 02 | [domain-model.md](02-domain-model.md) | 메시지·태스크·컨택트·리포트 모델 | Message/Task/Contact/Report model | [internal/ids/](../../internal/ids/), [db/models.go](../../db/models.go) |
+| 03 | [backend-architecture.md](03-backend-architecture.md) | DI·패키지·요청 플로우 | DI, packages, request flow | [main.go](../../main.go), [handlers/routes.go](../../handlers/routes.go) |
+| 04 | [data-layer.md](04-data-layer.md) | sqlc·Turso·19 entity·migrations | sqlc, Turso, 19 entities, migrations | [store/](../../store/), [db/](../../db/), [store/queries/](../../store/queries/) |
+| 05 | [channels.md](05-channels.md) | 4 채널 어댑터 (Slack/Gmail/Telegram/WhatsApp) | 4 channel adapters | [channels/](../../channels/) |
+| 06 | [scanner-pipeline.md](06-scanner-pipeline.md) | 스캔 루프·enricher·prime-pool | Scan loop, enricher, prime-pool | [scanner/](../../scanner/) |
+| 07 | [ai-filter-pipeline.md](07-ai-filter-pipeline.md) | Parser→Flash-Lite→Flash→Pro·RAG | 4-stage filter + RAG | [ai/](../../ai/) |
+| 08 | [services-business-logic.md](08-services-business-logic.md) | 13 서비스 (tasks·consolidate·reports) | 13 service modules | [services/](../../services/) |
+| 09 | [identity-and-dedup.md](09-identity-and-dedup.md) | DSU·alias·신원 매핑·중복 제거 | DSU, alias, identity, dedup | [ai/identity_resolver.go](../../ai/identity_resolver.go), [store/dsu.go](../../store/dsu.go) |
+| 10 | [locking-and-concurrency.md](10-locking-and-concurrency.md) | 분산 락·safego·graceful shutdown | Lock, safego, shutdown | [services/lock_service.go](../../services/lock_service.go), [internal/safego/](../../internal/safego/) |
+| 11 | [handlers-and-api.md](11-handlers-and-api.md) | 12 handler·68 라우트·미들웨어 | 12 handlers, 68 routes, middleware | [handlers/](../../handlers/) |
+| 12 | [auth-and-security.md](12-auth-and-security.md) | Google OAuth·세션·AdminMiddleware | Google OAuth, session, admin | [auth/](../../auth/) |
+| 13 | [frontend-architecture.md](13-frontend-architecture.md) | 모듈·이벤트·state·renderer | Modules, events, state, renderer | [src/app.ts](../../src/app.ts), [src/state.ts](../../src/state.ts) |
+| 14 | [frontend-ui-system.md](14-frontend-ui-system.md) | CSS 토큰·BEM·components·i18n | CSS tokens, BEM, components, i18n | [static/css/](../../static/css/), [src/components/](../../src/components/) |
+| 15 | [observability.md](15-observability.md) | WhaTap·logger 3종·ai_logger | WhaTap, 3 loggers, ai_logger | [logger/](../../logger/), [internal/whataphttpx/](../../internal/whataphttpx/) |
+| 16 | [cli-and-tools.md](16-cli-and-tools.md) | 16 CLI 단위 (sim·verify·check·util·thinking-exp) | 16 CLI tools | [cmd/](../../cmd/) |
+| 17 | [testing-strategy.md](17-testing-strategy.md) | 88 Go 테스트·21 vitest·AI 회귀 | 88 Go, 21 vitest, AI regression | [tests/](../../tests/), [unit-test.sh](../../unit-test.sh) |
+| 18 | [build-and-deploy.md](18-build-and-deploy.md) | Makefile 19 target·Docker·Caddy·VPS | 19 targets, Docker, Caddy, VPS | [Makefile](../../Makefile), [docker-compose.yml](../../docker-compose.yml), [Caddyfile](../../Caddyfile) |
+| 19 | [user-manual.md](19-user-manual.md) | 최종 사용자 가이드 (채널 연동·FAQ) | End-user guide | (UI labels in [src/locales/](../../src/locales/)) |
+| 20 | [operations-runbook.md](20-operations-runbook.md) | 트러블슈팅 10건·사고 대응 | 10 troubleshooting scenarios | — |
+| 99 | [glossary.md](99-glossary.md) | 40+ 용어 사전 (한/영) | 40+ term glossary (KO/EN) | — |
 
 ---
 
@@ -73,13 +72,11 @@ This directory is the **single source of truth** for the `message-consolidator` 
 - **OAuth 흐름**: 12 (사용자 로그인), 05 (Gmail), 18 (.env)
 - **회귀 테스트 (AI)**: 17, 16 (verify/*)
 - **로그 3종 (logger/structured/ai)**: 15
-- **Hybrid Archive Search (의미 검색)**: 04 (F32_BLOB/vector_distance_cos 스키마), 08 (EmbeddingService/RRF), 11 (라우트), 13 (Smart 토글)
 
 **English:**
 
 Same structure — see chapter cross-references inside each file.
 
-- **Hybrid Archive Search**: 04 (F32_BLOB/vector_distance_cos schema), 08 (EmbeddingService/RRF), 11 (routes), 13 (Smart toggle)
 - **Interactive user guide**: [`docs/user-guide/`](../../docs/user-guide/) (getting-started, channels, tasks, reports, faq) — rendered in-app via `src/guide.ts` + `src/guide-content.ts`
 
 ---
@@ -136,7 +133,7 @@ done
 **한국어:**
 
 - **작성 방식**: Sonnet 4.6 sub-agent 20개 (Wave 1~4 순차, Wave 내부 병렬)
-- **흡수된 레거시 문서**: 9개 (1,107줄) → 23 챕터 (11,505줄)
+- **흡수된 레거시 문서**: 9개 → 22 챕터
 - **모델**: sub-agent는 sonnet, 최종 INDEX/glossary는 main(Opus)
 - **WhaTap 부트스트랩 함정**: trace.Init 누락 시 silent no-op — chapter 15에 명시
 - **알려진 stale (레거시 문서 대비)**: 챕터별 "Deltas from legacy docs" 섹션에 분산 기록
@@ -144,7 +141,7 @@ done
 **English:**
 
 - Authored via 20 Sonnet 4.6 sub-agents (Wave 1–4 sequential, intra-wave parallel)
-- 9 legacy docs (1,107 lines) absorbed into 23 chapters (11,505 lines)
+- 9 legacy docs absorbed into 22 chapters
 - Sonnet for chapters, Opus for INDEX/glossary
 - WhaTap bootstrap pitfall (silent no-op when `trace.Init` missing) documented in chapter 15
 - Known stale items vs legacy: see "Deltas from legacy docs" sections within each chapter

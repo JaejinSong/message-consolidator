@@ -873,7 +873,7 @@ Each test starts with an isolated DB. `ResetForTest` truncates tables, preventin
 
 | 항목 | 이전 | 현재 |
 |---|---|---|
-| 신규 라우트 | — | `/api/messages/archive/semantic`, `/api/admin/embeddings/backfill`, `/api/internal/embeddings/backfill` (2026-07-22 임베딩 파이프라인 제거로 폐기, → [21-release-history.md](21-release-history.md)) |
+| 신규 라우트 | — | `/api/messages/archive/semantic`, `/api/admin/embeddings/backfill`, `/api/internal/embeddings/backfill` (2026-07-22 임베딩 파이프라인 제거로 폐기, → 커밋 `227ba7f`) |
 | `handleAPIError` | 미표준화 (일부 직접 호출) | 39 site 표준화 완료 (`[TAG]` prefix + 499 일관화) |
 | `applyHotReload` | `switch` 문 | `map[string]hotReloader` dispatch table 리팩터 |
 | `HandleBackfillRoomActor` | 단일 함수 | `buildBackfillCandidates` + `applyBackfillCandidates` build/apply 분리 |
