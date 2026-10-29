@@ -12,35 +12,6 @@
     color: var(--text-main);
 }
 
-.c-report-card {
-    background: var(--card-bg);
-    border: var(--border-thin) solid var(--glass-border);
-    backdrop-filter: blur(var(--blur-md));
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xl);
-    box-shadow: var(--shadow-card);
-}
-
-.c-report-card__header {
-    margin-bottom: var(--spacing-lg);
-    border-bottom: var(--border-thin) solid var(--glass-border);
-    padding-bottom: var(--spacing-sm);
-}
-
-.c-report-card__title {
-    font-size: 1.3125rem;
-    font-weight: 800;
-    color: var(--accent-color);
-    letter-spacing: -0.02em;
-    margin: 0;
-}
-
-.c-report-card__meta {
-    font-size: 0.875rem;
-    color: var(--text-dim);
-    margin-top: var(--spacing-xs);
-}
-
 /* Typography Hierarchy for Markdown Content */
 .c-report-content {
     line-height: 1.7;
@@ -96,129 +67,13 @@
     margin-top: var(--spacing-xl);
 }
 
-.c-report-viz__section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-}
-
-.c-report-viz__title {
-    font-size: 0.9375rem;
-    font-weight: 700;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.c-report-viz__container {
-    width: 100%;
-    height: 25rem;
-    background: rgba(var(--accent-rgb), 0.02);
-    border-radius: var(--radius-md);
-    border: var(--border-thin) solid var(--border-light);
-    overflow: hidden;
-    position: relative;
-}
-
 /* SVG Chart Elements */
-.c-report-viz__svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-
-.c-report-viz__node {
-    fill: var(--accent-color);
-    stroke: var(--card-bg);
-    stroke-width: 1.5;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.c-report-viz__node:hover {
-    filter: brightness(1.2) drop-shadow(0 0 0.5rem var(--accent-glow));
-    transform: scale(1.1);
-}
-
-.c-report-viz__node--me {
-    fill: var(--color-warning);
-    stroke: var(--accent-color);
-    stroke-width: 2;
-}
-
-.c-report-viz__link {
-    stroke: var(--accent-color);
-    stroke-opacity: 0.15;
-    stroke-linecap: round;
-    transition: all 0.3s ease;
-}
-
-.c-report-viz__link:hover {
-    stroke-opacity: 0.6;
-    stroke-width: 3;
-}
-
-.c-report-viz__label {
-    font-size: 0.8125rem;
-    pointer-events: none;
-    fill: var(--text-dim);
-    font-weight: 500;
-    transition: fill var(--transition-base);
-}
-
-.c-report-viz__node-group {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.c-report-viz__node-group:hover {
-    transform: scale(1.05);
-}
-
 
 /* Interaction: Tooltips/Panels */
-.c-report-tooltip {
-    position: absolute;
-    background: var(--bg-floater);
-    border: var(--border-thin) solid var(--glass-border);
-    padding: var(--spacing-md);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-main);
-    backdrop-filter: blur(var(--blur-md));
-    z-index: var(--z-index-dropdown);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity var(--transition-base);
-    max-width: 15rem;
-}
-
-.c-report-tooltip--active {
-    opacity: 1;
-}
 
 /* Responsive Overrides */
-@media (max-width: 48rem) {
-    .c-report-viz__container {
-        height: 20rem;
-    }
-    
-    .c-report-card {
-        padding: var(--spacing-lg);
-    }
-    
-    .c-report-card__title {
-        font-size: 1.1875rem;
-    }
-}
 
 /* Report History List */
-.c-report-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
 
 .c-insights-report-item {
     padding: var(--spacing-md);
@@ -244,18 +99,6 @@
     color: var(--text-main);
 }
 
-.c-insights-report-item__meta {
-    margin-top: 0.125rem;
-    font-size: 0.8125rem;
-    color: var(--text-dim);
-}
-
-.c-report-list__empty {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 0.875rem;
-}
-
 .c-reports-empty-state {
     display: flex;
     flex-direction: column;
@@ -266,29 +109,6 @@
     border: var(--border-thin) dashed var(--glass-border);
     border-radius: var(--radius-lg);
     animation: fadeIn var(--anim-duration-md) ease-out;
-}
-
-.c-insights-report-item__status {
-    margin-top: var(--spacing-xs);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-}
-
-.c-insights-report-item__status--processing {
-    color: var(--status-pending-color);
-}
-
-.c-insights-report-item__status--completed {
-    color: var(--status-active-color);
-}
-
-.c-insights-report-item__status--failed {
-    color: var(--color-danger);
 }
 
 /* =============================================

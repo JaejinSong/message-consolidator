@@ -41,8 +41,7 @@ body {
     input[type="search"],
     textarea,
     select,
-    .c-input,
-    .c-guide__search-input {
+    .c-input {
         font-size: 1rem;
     }
 }

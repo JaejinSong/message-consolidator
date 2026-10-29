@@ -53,11 +53,6 @@
     box-shadow: 0 0 0.5rem var(--accent-glow);
 }
 
-.heatmap-grid__cell--empty {
-    opacity: 0.1;
-    pointer-events: none;
-}
-
 /* --- Premium Tooltip --- */
 .c-insights-tooltip {
     position: absolute;
@@ -124,8 +119,6 @@
     letter-spacing: 0.05em;
     pointer-events: none;
 }
-
-
 
 .c-insights-card__main-value {
     font-size: 2.5rem;
@@ -214,33 +207,9 @@
     opacity: 0.7;
 }
 
-
 /* Modifier: 2-column wide, but same height as a square */
-.c-insights-card--double {
-    grid-column: span 2;
-    aspect-ratio: auto;
-    /* Aspect ratio height matches square if grid is 3-col: 
-       (Width*2 + gap) / Height = X... 
-       Actually, in grid, just set grid-column and let aspect-ratio: 1 on common cards 
-       define the height of the row. align-items: stretch by default.
-    */
-}
-
-.c-insights-card--full {
-    grid-column: span 3;
-    aspect-ratio: 3 / 1; /* Approximate for wide visuals */
-    min-height: auto;
-}
 
 /* Chart containers inside cards */
-.c-insights-chart-wrap {
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
 
 .c-insights-dashboard {
     width: 100%;
@@ -256,30 +225,13 @@
 }
 
 /* Modifier: Card Spanning */
-.c-insights-card--double {
-    grid-column: span 2;
-}
-
-.c-insights-card--full {
-    grid-column: span 3;
-}
 
 /* Pair wrapper: 2 equal cards across the full grid row */
-.c-insights-grid__pair {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-xl);
-}
 
 /* Tablet: 2 columns (< 64rem) */
 @media (max-width: 64rem) {
     .c-insights-grid {
         grid-template-columns: repeat(2, 1fr);
-    }
-    .c-insights-card--full,
-    .c-insights-card--double {
-        grid-column: span 2;
     }
 }
 
@@ -289,19 +241,9 @@
         grid-template-columns: 1fr;
         gap: var(--spacing-md);
     }
-    .c-insights-card--full,
-    .c-insights-card--double {
-        grid-column: span 1;
-        aspect-ratio: auto;
-        min-height: 12rem;
-    }
     .c-insights-card--square {
         aspect-ratio: auto;
         min-height: 10rem;
-    }
-    .c-insights-grid__pair {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-md);
     }
     .c-chart__header {
         flex-direction: column;
@@ -365,7 +307,6 @@
     justify-content: center;
 }
 
-
 /* --- Weekly Report Layout --- */
 .c-insights-report-layout {
     display: none;
@@ -400,12 +341,6 @@
     align-items: center;
 }
 
-.c-report-sidebar__header h3 {
-    font-size: 0.9rem;
-    font-weight: 800;
-    margin: 0;
-}
-
 .c-insights-report-list {
     flex: 1;
     overflow-y: auto;
@@ -425,11 +360,6 @@
 .c-insights-report-item__content {
     display: flex;
     flex-direction: column;
-}
-
-.c-insights-report-item__info {
-    flex: 1;
-    min-width: 0;
 }
 
 .c-insights-report-item:hover {
@@ -478,12 +408,6 @@
 .c-insights-report-item__kind--weekly {
     background: rgba(var(--color-primary-rgb), 0.18);
     color: var(--color-primary);
-}
-
-.c-insights-report-item__range {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-dim);
 }
 
 .c-insights-report-item__delete {
@@ -537,35 +461,6 @@
 }
 
 /* --- Report Components --- */
-.c-alert {
-    padding: 1rem 1.25rem;
-    border-radius: var(--radius-md);
-    display: flex;
-    gap: 0.75rem;
-    align-items: flex-start;
-}
-
-.c-alert--warning {
-    background: rgba(var(--color-warning-rgb), 0.1);
-    border: var(--border-thin) solid rgba(var(--color-warning-rgb), 0.2);
-    color: var(--color-warning);
-}
-
-.c-alert--info {
-    background: rgba(var(--color-primary-rgb), 0.1);
-    border: var(--border-thin) solid rgba(var(--color-primary-rgb), 0.2);
-    color: var(--color-primary);
-}
-
-.c-alert__icon {
-    font-size: 1.1rem;
-}
-
-.c-alert__content p {
-    margin: 0;
-    font-size: 0.9rem;
-    font-weight: 600;
-}
 
 @media (max-width: 64rem) {
     .c-insights-report-layout {
@@ -595,7 +490,6 @@
 }
 /* --- Report Summary Table Styling --- */
 /* --- Report Summary Table Styling --- */
-.c-report-summary__content table,
 .report-content table,
 .c-report-table {
     width: 100%;
@@ -660,7 +554,6 @@
 }
 
 .c-report-table th,
-.c-report-summary__content th,
 .report-content th {
     background: var(--table-header-bg);
     font-weight: 800;
@@ -672,19 +565,16 @@
 }
 
 .c-report-table tr:last-child td,
-.c-report-summary__content tr:last-child td,
 .report-content tr:last-child td {
     border-bottom: none;
 }
 
 .c-report-table tr:nth-child(even),
-.c-report-summary__content tr:nth-child(even),
 .report-content tr:nth-child(even) {
     background: rgba(var(--text-main-rgb), 0.02);
 }
 
 .c-report-table tr:hover,
-.c-report-summary__content tr:hover,
 .report-content tr:hover {
     background: rgba(var(--accent-rgb), 0.05);
 }
@@ -735,7 +625,6 @@
     line-height: 1.4;
 }
 
-
 /* --- Report Controls --- */
 .c-report-controls .u-flex {
     align-items: center;
@@ -757,25 +646,11 @@
     padding: 0 1.25rem;
 }
 
-.c-report-summary__content th {
-    background: var(--table-header-bg);
-}
-
 body.light-theme .report-content th {
     background: var(--table-header-bg);
 }
 
 /* --- AI Reports General Titles --- */
-.c-report-summary-title,
-.c-report-viz-title,
-.c-report-flow-title {
-    font-size: 0.8125rem;
-    font-weight: 700;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: var(--spacing-md);
-}
 
 /* --- AI Report Content Typography & Spacing (UI/UX Patch) --- */
 #reportSummaryContent {
@@ -831,17 +706,8 @@ body.light-theme .report-content th {
 
 /* --- Aesthetic Highlighting --- */
 /* Executive Summary highlighting for Labels and Metrics */
-.report-content .section-exec li strong {
-    color: var(--accent-color);
-    text-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
-    font-weight: 800;
-}
 
 /* Management Gap highlighting for [Target] labels */
-.report-content .section-gap li strong {
-    color: var(--accent-color);
-    font-weight: 800;
-}
 
 /* --- Report Loading & Error States --- */
 .c-report-loading {
@@ -886,27 +752,6 @@ body.light-theme .report-content th {
     align-items: center;
     min-height: 12.5rem;
 }
-
-.c-report-error .c-alert {
-    max-width: var(--bp-mobile);
-    width: 100%;
-    border: var(--border-thin) solid rgba(var(--color-error-rgb), 0.2);
-    box-shadow: var(--shadow-main);
-    animation: slideInUp 0.3s ease-out;
-}
-
-.c-alert--error {
-    background: rgba(var(--color-error-rgb), 0.1);
-    color: var(--color-error);
-    border-color: rgba(var(--color-error-rgb), 0.2);
-}
-
-.c-alert--info {
-    background: rgba(var(--color-info-rgb), 0.1);
-    color: var(--color-info);
-    border-color: rgba(var(--color-info-rgb), 0.2);
-}
-
 
 /* --- AI Usage Consolidated Widget (.c-ai-usage) --- */
 .c-ai-usage {
@@ -964,7 +809,6 @@ body.light-theme .report-content th {
 
 @media (max-width: 48rem) {
     .c-report-table,
-    .c-report-summary__content table,
     .report-content table {
         font-size: 0.75rem;
     }

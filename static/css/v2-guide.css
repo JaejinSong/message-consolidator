@@ -95,27 +95,6 @@
   position: relative;
 }
 
-.c-guide__search-input {
-  width: 100%;
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(var(--surface-rgb), 0.04);
-  border: var(--border-thin) solid var(--glass-border);
-  border-radius: var(--radius-md);
-  color: var(--text-main);
-  font-size: 0.875rem;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
-}
-
-.c-guide__search-input::placeholder {
-  color: var(--text-dim);
-}
-
-.c-guide__search-input:focus {
-  outline: none;
-  border-color: rgba(var(--color-primary-rgb), 0.5);
-  background: rgba(var(--surface-rgb), 0.06);
-}
-
 .c-guide__search-results {
   list-style: none;
   margin: var(--spacing-xs) 0 0;
@@ -138,14 +117,6 @@
   display: none;
 }
 
-.c-guide__search-group {
-  padding: var(--spacing-xs) var(--spacing-md);
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-}
-
 .c-guide__search-result {
   padding: var(--spacing-sm) var(--spacing-md);
   cursor: pointer;
@@ -156,22 +127,8 @@
   gap: var(--spacing-xxs);
 }
 
-.c-guide__search-result:hover,
-.c-guide__search-result--active {
+.c-guide__search-result:hover {
   background: rgba(var(--color-primary-rgb), 0.1);
-}
-
-.c-guide__search-result-heading {
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.c-guide__search-result-snippet {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ---------- TOC (right rail) ---------- */
@@ -181,50 +138,8 @@
   padding: 0 var(--spacing-lg);
 }
 
-.c-guide__toc-title {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  padding: 0 var(--spacing-sm) var(--spacing-sm);
-  margin: 0;
-  font-weight: 600;
-}
-
-.c-guide__toc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .c-guide__toc-item {
   margin: 0;
-}
-
-.c-guide__toc-link {
-  display: block;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  color: var(--text-dim);
-  text-decoration: none;
-  border-left: 0.125rem solid transparent;
-  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.c-guide__toc-link:hover {
-  color: var(--text-main);
-}
-
-.c-guide__toc-item--sub .c-guide__toc-link {
-  padding-left: var(--spacing-lg);
-  font-size: 0.78rem;
-}
-
-.c-guide__toc-item--active > .c-guide__toc-link {
-  color: var(--color-primary);
-  border-left-color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.06);
 }
 
 /* ---------- Content typography ---------- */

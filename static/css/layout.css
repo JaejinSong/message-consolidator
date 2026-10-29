@@ -56,7 +56,6 @@ header {
     transition: color var(--transition-base);
 }
 
-
 .profile-img-small {
     width: 2.625rem;
     height: 2.625rem;
@@ -185,34 +184,6 @@ header {
     margin-bottom: 2rem;
 }
 
-.completed-list-divider {
-    grid-column: 1 / -1;
-    height: var(--border-thin);
-    background: linear-gradient(90deg, transparent, rgba(var(--surface-rgb), 0.1), transparent);
-    margin: 1rem 0 3rem 0;
-    position: relative;
-}
-
-.completed-list-divider::after {
-    content: "Completed Tasks";
-    /* @layout-override */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--body-bg);
-    padding: 0 1rem;
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.0625rem;
-}
-
-body.light-theme .completed-list-divider::after {
-    background: var(--bg-color);
-}
-
 .empty-state__icon {
     font-size: 3rem;
     margin-bottom: var(--spacing-sm);
@@ -227,18 +198,13 @@ body.light-theme .completed-list-divider::after {
 
 /* --- Utilities --- */
 .u-flex { display: flex !important; }
-.u-flex-column { display: flex !important; flex-direction: column !important; }
 .u-flex-between { display: flex !important; justify-content: space-between !important; }
 .u-flex-align-center { display: flex !important; align-items: center !important; }
-.u-flex-justify-center { display: flex !important; justify-content: center !important; }
 .u-flex-gap-sm { gap: var(--spacing-sm) !important; }
-.u-flex-gap-md { gap: var(--spacing-md) !important; }
-.u-flex-gap-lg { gap: var(--spacing-lg) !important; }
 
 .u-nowrap { white-space: nowrap !important; }
 .u-no-shrink { flex-shrink: 0 !important; }
 .u-w-full { width: 100% !important; }
-.u-h-full { height: 100% !important; }
 .u-w-auto { width: auto !important; }
 
 .u-mb-2 { margin-bottom: var(--spacing-xs) !important; }
@@ -256,5 +222,4 @@ body.light-theme .completed-list-divider::after {
 .u-font-bold { font-weight: 700 !important; }
 
 .u-cursor-pointer { cursor: pointer !important; }
-.u-invisible { visibility: hidden !important; }
 .u-hidden { display: none !important; }

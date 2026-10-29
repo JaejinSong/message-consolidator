@@ -83,54 +83,9 @@
     line-height: 1.5;
 }
 
-.c-settings__divider {
-    border: 0;
-    border-top: var(--border-thin) solid var(--glass-border);
-    margin: 2rem 0;
-}
-
 /* Groups and Lists */
-.c-settings__group {
-    display: flex;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
-}
-
-.c-settings__list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-md);
-}
-
-.c-settings__item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    background: rgba(var(--surface-rgb), 0.08);
-    border: var(--border-thin) solid var(--glass-border);
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--radius-full);
-    font-size: 0.9rem;
-}
 
 /* Status Pills */
-.status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--radius-full);
-    font-size: 0.85rem;
-    font-weight: 600;
-    background: rgba(var(--surface-rgb), 0.05);
-    color: var(--text-dim);
-}
-
-.status-pill.gmail-pill {
-    background: rgba(var(--color-gmail-rgb), 0.1);
-    color: var(--color-gmail);
-    border: var(--border-thin) solid rgba(var(--color-gmail-rgb), 0.2);
-}
 
 /* Scrollbar customization */
 .c-settings__main::-webkit-scrollbar {
@@ -183,14 +138,6 @@ body.light-theme .c-settings__sidebar {
 }
 
 body.light-theme .c-settings__tab:hover {
-    background: rgba(0, 0, 0, 0.04);
-}
-
-body.light-theme .c-settings__item {
-    background: rgba(0, 0, 0, 0.03);
-}
-
-body.light-theme .status-pill {
     background: rgba(0, 0, 0, 0.04);
 }
 /* --- AI Identity Proposals --- */
@@ -261,38 +208,3 @@ body.light-theme .c-proposal-card__chip {
 }
 
 /* --- Account Linking --- */
-.c-settings__link-box {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    background: rgba(var(--surface-rgb), 0.03);
-    border: var(--border-thin) solid var(--glass-border);
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--spacing-md);
-}
-
-.c-settings__link-field {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-}
-
-.c-settings__link-arrow {
-    font-size: 1.5rem;
-    color: var(--text-dim);
-    padding-top: 1.25rem;
-}
-
-@media (max-width: 30rem) {
-    .c-settings__link-box {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .c-settings__link-arrow {
-        text-align: center;
-        padding-top: 0;
-        transform: rotate(90deg);
-    }
-}

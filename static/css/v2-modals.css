@@ -143,9 +143,6 @@
 }
 
 /* --- Utility Classes --- */
-.u-invisible {
-    visibility: hidden !important;
-}
 
 /* Scrollbar styling for modal body */
 .c-modal__body::-webkit-scrollbar {

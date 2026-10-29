@@ -1,6 +1,5 @@
 /* --- Utilities --- */
 .u-text-center { text-align: center; }
-.u-mt-1 { margin-top: 0.25rem; }
 .u-mt-2 { margin-top: 0.5rem; }
 .u-mt-4 { margin-top: 1rem; }
 .u-mb-2 { margin-bottom: 0.5rem; }
@@ -16,24 +15,9 @@
 .u-flex-between { justify-content: space-between; }
 .u-flex-align-center { align-items: center; }
 .u-flex-gap-sm { gap: var(--spacing-sm); }
-.u-items-center { align-items: center; }
 .u-align-self-center { align-self: center; }
 .u-w-auto { width: auto !important; }
-.u-gap-2 { gap: 0.5rem; }
 .u-w-full { width: 100% !important; }
-.u-h-full { height: 100% !important; }
 .u-hidden, .hidden { display: none !important; }
-.u-invisible { visibility: hidden !important; }
 
 /* XP Float Text */
-.xp-float {
-    /* @layout-override */
-    position: absolute;
-    color: var(--accent-color);
-    font-weight: bold;
-    font-size: 1.2rem;
-    pointer-events: none;
-    z-index: var(--z-index-dropdown);
-    text-shadow: 0 0 var(--spacing-sm) var(--accent-glow);
-    animation: xpFloat 1s ease-out forwards;
-}
