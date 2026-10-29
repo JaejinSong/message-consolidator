@@ -176,10 +176,6 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 		return fmt.Errorf("token_usage peak migration failed: %w", err)
 	}
 
-	if err := migrateEmbeddingsToF32(ctx, tx); err != nil {
-		return fmt.Errorf("embedding f32 migration failed: %w", err)
-	}
-
 	if err := dropAIInferencePayloadColumns(ctx, tx); err != nil {
 		return fmt.Errorf("ai_inference_logs payload column drop failed: %w", err)
 	}
@@ -222,6 +218,10 @@ func runFullDDL(ctx context.Context, dbConn *sql.DB) error {
 
 	if err := addMergeProposalColumns(ctx, tx); err != nil {
 		return fmt.Errorf("add merge proposal columns failed: %w", err)
+	}
+
+	if err := dropMessageEmbeddings(ctx, tx); err != nil {
+		return fmt.Errorf("drop message embeddings failed: %w", err)
 	}
 
 	// Why: Rebuild views AFTER tables and columns exist to ensure they reference current schema.

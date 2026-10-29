@@ -174,15 +174,6 @@ type Message struct {
 	Lifecycle           sql.NullString `json:"lifecycle"`
 }
 
-type MessageEmbedding struct {
-	MessageID int64        `json:"message_id"`
-	Model     string       `json:"model"`
-	Dim       int64        `json:"dim"`
-	Vec       interface{}  `json:"vec"`
-	TextHash  string       `json:"text_hash"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
 type Report struct {
 	ID            int64          `json:"id"`
 	UserEmail     string         `json:"user_email"`

@@ -701,7 +701,7 @@ The Gemini embedding pipeline was removed entirely on 2026-07-22 —
 `EmbeddingService`, `ai/embedding.go`, `store/embeddings_store.go`, and
 `handlers/handlers_embeddings.go` are all deleted. Archive search and
 completion-candidate matching now run on FTS5 alone; the `message_embeddings`
-table is retained but dormant (`→ [04-data-layer.md]`).
+table was dropped in schema v27 (`→ [04-data-layer.md]`).
 
 ### 11.1 Archive Search
 
@@ -815,7 +815,7 @@ replay-window logic.
 | Room locks, prime-pool scheduler, atomic CAS | `→ [10-locking-and-concurrency.md]` |
 | Handler → Service call sites, HTTP API contracts | `→ [11-handlers-and-api.md]` |
 | store.SaveMessage, task_translations schema | `→ [04-data-layer.md]` |
-| FTS5-only search, `message_embeddings` (dormant), `SearchOpenTasksFTS` | `→ [04-data-layer.md]` |
+| FTS5-only search, `SearchOpenTasksFTS` | `→ [04-data-layer.md]` |
 | Overall backend dependency graph | `→ [03-backend-architecture.md]` |
 | Full regression test infrastructure | `→ [17-testing.md]` |
 | Slack HMAC-SHA256 request signing | `→ [12-auth.md]` |

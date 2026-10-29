@@ -49,7 +49,6 @@ type Querier interface {
 	CreateLearnedExamplesTable(ctx context.Context) error
 	CreateLineInboxTable(ctx context.Context) error
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (int64, error)
-	CreateMessageEmbeddingsTable(ctx context.Context) error
 	CreateMessagesTable(ctx context.Context) error
 	CreateMessagesView(ctx context.Context) error
 	CreateReportTranslationsTable(ctx context.Context) error

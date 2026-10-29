@@ -417,22 +417,7 @@ erDiagram
 - **주요 컬럼**: `message_id FK`, `source`, `original_text`, `raw_response`, `created_at`
 - **외래키**: `message_id → messages(id)` (nullable — message 생성 전 로깅 허용)
 
-#### `message_embeddings` ★ (schema v2 추가, 2026-07-22부터 dormant)
-- **책임 (레거시)**: 아카이브 메시지의 벡터 임베딩 저장. 과거 의미 검색(hybrid archive search)에 사용되었으나, 2026-07-22 임베딩 파이프라인 전체 제거로 더 이상 쓰기/읽기가 발생하지 않는다. 검색/완료 매칭은 현재 FTS5 단독 구현이다 (→ 커밋 `227ba7f`). 테이블과 인덱스는 schema v15 그대로 보존되며, 기존 데이터는 stale 상태로 남아 있다 (drop 여부는 향후 운영 결정 사항).
-- **주요 컬럼**:
-
-| 컬럼 | 타입 | 설명 |
-|---|---|---|
-| `message_id` | INT PK | `messages(id)` 참조 |
-| `model` | TEXT | 임베딩 모델명 (예: `gemini-embedding-001`) |
-| `dim` | INT | 벡터 차원 수 (현재 768) |
-| `vec` | F32_BLOB(768) | little-endian float32 벡터 (schema v4 이후) |
-| `text_hash` | TEXT | 텍스트 변경 감지용 해시 — 동일 텍스트 재임베딩 방지 |
-
-- **인덱스**: `idx_msg_emb_model_id ON message_embeddings(model, message_id)` — 과거 `SemanticTopK`의 WHERE+ORDER BY 커버링용 (해당 함수는 삭제됨, 인덱스만 잔존)
-- **마이그레이션**: schema v2에서 BLOB로 최초 생성 → v4에서 `migrateEmbeddingsToF32`로 F32_BLOB(768) 재구성
-
-**English:** `scan_metadata` is the scanner's restart checkpoint — `source='processed_msg'` rows double as a deduplication guard. `gmail_tokens` persists OAuth refresh tokens so that server restarts do not trigger re-authorisation. `telegram_sessions` and `telegram_credentials` are keyed by email so multi-user deployments each carry their own MTProto state. `app_settings` is a runtime feature-flag store updated without redeployment. `token_usage` tracks AI cost at a 6-dimensional grain; `ai_inference_logs` retains raw request/response pairs for reproducibility. `message_embeddings` is legacy and dormant since 2026-07-22 — the embedding pipeline was removed entirely and search/completion matching now run on FTS5 alone; the table, its `F32_BLOB(768)` column, and its index are retained (stale data, schema still v15) pending a future drop decision.
+**English:** `scan_metadata` is the scanner's restart checkpoint — `source='processed_msg'` rows double as a deduplication guard. `gmail_tokens` persists OAuth refresh tokens so that server restarts do not trigger re-authorisation. `telegram_sessions` and `telegram_credentials` are keyed by email so multi-user deployments each carry their own MTProto state. `app_settings` is a runtime feature-flag store updated without redeployment. `token_usage` tracks AI cost at a 6-dimensional grain; `ai_inference_logs` retains raw request/response pairs for reproducibility. The legacy `message_embeddings` table was dropped in schema v27 after the embedding pipeline was removed.
 
 ### 4.6 VIEW 엔티티
 
@@ -501,9 +486,8 @@ flowchart TD
     D --> E{schemaIsCurrent?\napp_settings schema_version == 4}
     E -- Yes --> J
     E -- No --> F[runFullDDL]
-    F --> F1[createCoreTables\n포함: message_embeddings]
-    F1 --> F2[migrateEmbeddingsToF32\nBLOB→F32_BLOB idempotent]
-    F2 --> G[rebuildViews]
+    F --> F1[createCoreTables]
+    F1 --> G[rebuildViews]
     G --> H[createIndexes\n포함: idx_msg_emb_model_id]
     H --> I[stampSchemaVersion v4]
     I --> J{testMode?}
@@ -517,7 +501,7 @@ flowchart TD
 
 ### 5.3 `createCoreTables()` 패턴
 
-**한국어:** `createCoreTables` 는 `db.New(q)` 로 sqlc 쿼리 객체를 만들고, 24개 테이블을 순서대로 호출합니다. 각 DDL은 `CREATE TABLE IF NOT EXISTS` 이므로 멱등합니다. 순서가 중요합니다 — 외래키 참조 대상 테이블이 먼저 생성되어야 합니다 (예: `contacts` 전에 `identity_merge_history` 불가).
+**한국어:** `createCoreTables` 는 `db.New(q)` 로 sqlc 쿼리 객체를 만들고, 28개 테이블을 순서대로 호출합니다. 각 DDL은 `CREATE TABLE IF NOT EXISTS` 이므로 멱등합니다. 순서가 중요합니다 — 외래키 참조 대상 테이블이 먼저 생성되어야 합니다 (예: `contacts` 전에 `identity_merge_history` 불가).
 
 **English:** Table creation order in `createCoreTables` respects foreign key dependencies. SQLite enforces FK constraints at DML time (not DDL), but maintaining declaration order documents intent.
 
@@ -529,12 +513,12 @@ flowchart TD
 
 | 단계 | 함수 | 목적 |
 |---|---|---|
-| 1 | `createCoreTables` | 24개 테이블 `CREATE TABLE IF NOT EXISTS` (message_embeddings 포함) + `createMessagesFTS` (FTS5 가상 테이블 + 동기화 트리거 3종) |
+| 1 | `createCoreTables` | 28개 테이블 `CREATE TABLE IF NOT EXISTS` + `createMessagesFTS` (FTS5 가상 테이블 + 동기화 트리거 3종) |
 | 2 | `addMessagesUpdatedAtColumn` | `messages.updated_at` 컬럼 추가 + created_at 기준 백필 |
 | 3 | `addThinkingTokensColumn` | `token_usage.thinking_tokens` 컬럼 추가 |
 | 4 | `addCachedTokensColumn` | `token_usage.cached_tokens` 컬럼 추가 (프롬프트 캐시 히트 과금) |
 | 5 | `migrateTokenUsagePeak` | `token_usage.peak` 컬럼 + UNIQUE 확장 — 테이블 재구성 (v17, §5.8 참고) |
-| 6 | `migrateEmbeddingsToF32` | `message_embeddings.vec` BLOB → F32_BLOB(768) 원자적 재구성 (멱등, §5.8 참고) |
+| 6 | `dropMessageEmbeddings` | 휴면 `message_embeddings` 테이블 DROP (v27, 멱등) |
 | 7 | `dropAIInferencePayloadColumns` | `ai_inference_logs` payload 컬럼 DROP (로그 파일 이전 후) |
 | 8 | `addDeadlineColumns` | `messages.deadline_date`, `deadline_inferred` 추가 |
 | 9 | `suppressOldUndatedNudges` | 기한 없는 과거 nudge 억제 |
@@ -602,11 +586,23 @@ SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
 
 과거 cosine 기반 열린 태스크 후보 검색(`CandidateOpenTasks`)을 대체하는 새 함수는 `store/active_search_store.go`의 `SearchOpenTasksFTS(ctx, email, tokens []string, limit)` 입니다. BM25 랭킹으로 열린 태스크를 조회하며, 토큰 추출·게이팅 등 상위 로직은 서비스 계층 책임입니다 (→ [08-services-business-logic.md](08-services-business-logic.md)).
 
-#### `message_embeddings` 테이블과 `idx_msg_emb_model_id` 인덱스
+#### FTS5 (`messages_fts`) — BM25 전문 검색
 
-두 항목 모두 schema v15 상태로 보존되지만 dormant 상태입니다 — 더 이상 쓰기/읽기가 발생하지 않습니다. 삭제는 향후 운영 결정 사항입니다 (→ §4.5 `message_embeddings`).
+```sql
+SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?
+```
 
-**English:** As of 2026-07-22 the embedding pipeline was removed entirely; archive search and cross-channel completion candidate matching now run on FTS5 alone. `store/embeddings_store.go`, `services/embedding_service.go`, `ai/embedding.go`, and `handlers/handlers_embeddings.go` were deleted, along with `SemanticTopK`, `ArchiveFTSTopIDs`, and `EmbeddingService`. The data layer now exposes `SearchOpenTasksFTS` (BM25 over open tasks, in `store/active_search_store.go`) for completion-candidate matching, alongside the pre-existing FTS5 archive search path. The `message_embeddings` table and its `idx_msg_emb_model_id` index remain in schema v15 but are dormant (→ §4.5).
+`messages_fts` 는 `trigram` 토크나이저로 부분 문자열 매칭을 지원하며(→ §5.6), 아카이브 검색(`GET /api/messages/archive?q=`)에서 그대로 사용됩니다.
+
+#### `store.SearchOpenTasksFTS` — 크로스채널 완료 후보 매칭
+
+과거 cosine 기반 열린 태스크 후보 검색(`CandidateOpenTasks`)을 대체하는 새 함수는 `store/active_search_store.go`의 `SearchOpenTasksFTS(ctx, email, tokens []string, limit)` 입니다. BM25 랭킹으로 열린 태스크를 조회하며, 토큰 추출·게이팅 등 상위 로직은 서비스 계층 책임입니다 (→ [08-services-business-logic.md](08-services-business-logic.md)).
+
+#### `message_embeddings` 테이블 (v27에서 삭제)
+
+2026-07-22 임베딩 파이프라인 제거 후 쓰기/읽기가 없던 테이블을 schema v27의 `dropMessageEmbeddings`로 삭제했습니다 (→ §5.4). 인덱스는 테이블과 함께 사라집니다.
+
+**English:** The embedding pipeline was removed on 2026-07-22; archive search and cross-channel completion matching run on FTS5 alone. The unused `message_embeddings` table (and its index) was dropped in schema v27 by `dropMessageEmbeddings`.
 
 ---
 
@@ -702,7 +698,7 @@ _, err, _ := sfGroup.Do(sfKey, func() (any, error) {
 | **마이그레이션 방식** | `.sql` 파일 (`store/migrations/` 경로 존재) | `cleanup_legacy_aliases.sql`, `definitions.sql`, `migrations.sql` 삭제 완료. `migrations.go` 로 완전 전환 |
 | **초기화 흐름** | `runMigrations` 체인 (per-function 멱등성) | `schemaVersion` 게이팅 + `runFullDDL` 단일 패스 (schema v4) |
 | **Phase C 보류** | 마이그레이션 함수 제거 보류 | 완료 — `migrateTokenUsageBreakdown` 등 제거됨 (2026-05-02) |
-| **`message_embeddings` 테이블** | 없음 | schema v2 추가, v4에서 `F32_BLOB(768)` 으로 재구성 (2026-07-22부터 dormant, → §5.8) |
+| **`message_embeddings` 테이블** | 없음 | schema v2 추가, v27에서 DROP (2026-07-22부터 dormant) |
 | **`vector_distance_cos`** | 없음 | libsql 서버사이드 코사인 계산 — WAN 전송 ~700× 감소 (2026-07-22 임베딩 파이프라인 제거로 미사용) |
 | **`idx_msg_emb_model_id`** | 없음 | `createIndexes` 에 추가 — 과거 SemanticTopK 커버링 (해당 함수 삭제, 인덱스만 잔존) |
 | **Keep-alive 구현** | 명시 없음 | `SELECT 1` (PingContext 대신) — libsql warm 보장 목적 |

@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 26
+const schemaVersion = 27
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -74,7 +74,6 @@ func createCoreTables(ctx context.Context, q db.DBTX) error {
 		{"telegram_sessions", queries.CreateTelegramSessionsTable},
 		{"telegram_credentials", queries.CreateTelegramCredentialsTable},
 		{"app_settings", queries.CreateAppSettingsTable},
-		{"message_embeddings", queries.CreateMessageEmbeddingsTable},
 		{"task_grants", queries.CreateTaskGrantsTable},
 		{"wa_messages", queries.CreateWAMessagesTable},
 		{"line_inbox", queries.CreateLineInboxTable},
@@ -341,6 +340,15 @@ func addMergeProposalColumns(ctx context.Context, q db.DBTX) error {
 	return nil
 }
 
+// dropMessageEmbeddings (v27) removes the embedding table left dormant when search moved to FTS5.
+// Why: nothing reads or writes it any more; IF EXISTS keeps fresh DBs, which never create it, a no-op.
+func dropMessageEmbeddings(ctx context.Context, q db.DBTX) error {
+	if _, err := q.ExecContext(ctx, `DROP TABLE IF EXISTS message_embeddings`); err != nil {
+		return fmt.Errorf("drop message_embeddings: %w", err)
+	}
+	return nil
+}
+
 // suppressOldUndatedNudges marks pre-existing undated PROMISE/WAITING items older than 14 days
 // as already-nudged so the first deploy does not spam users with backlog notifications.
 // Items created within the last 14 days enter the normal aging flow and receive nudges naturally.
@@ -565,46 +573,6 @@ func addWAMessagesReplayColumns(ctx context.Context, q db.DBTX) error {
 		}
 		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
 			return fmt.Errorf("add wa_messages.%s: %w", col.name, err)
-		}
-	}
-	return nil
-}
-
-// migrateEmbeddingsToF32 atomically recreates message_embeddings with vec typed
-// as F32_BLOB(768) so libsql can run vector_distance_cos on the server side.
-// Why: SQLite cannot ALTER a column's type; the only path is CREATE/INSERT/DROP/RENAME.
-// The existing little-endian float32 bytes are copied 1:1 because F32_BLOB stores
-// the same raw encoding that Float32sToBytes produces.
-// Idempotent: skipped when the table already declares F32_BLOB.
-func migrateEmbeddingsToF32(ctx context.Context, q db.DBTX) error {
-	var count int
-	if err := q.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='message_embeddings'`,
-	).Scan(&count); err != nil || count == 0 {
-		return err
-	}
-	var ddl string
-	_ = q.QueryRowContext(ctx,
-		`SELECT sql FROM sqlite_master WHERE name='message_embeddings'`,
-	).Scan(&ddl)
-	if strings.Contains(ddl, "F32_BLOB") {
-		return nil
-	}
-	stmts := []string{
-		`CREATE TABLE message_embeddings_new (
-			message_id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
-			model TEXT NOT NULL, dim INTEGER NOT NULL,
-			vec F32_BLOB(768) NOT NULL, text_hash TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-		`INSERT INTO message_embeddings_new
-			SELECT message_id, model, dim, vec, text_hash, created_at
-			FROM message_embeddings WHERE dim = 768`,
-		`DROP TABLE message_embeddings`,
-		`ALTER TABLE message_embeddings_new RENAME TO message_embeddings`,
-	}
-	for _, s := range stmts {
-		if _, err := q.ExecContext(ctx, s); err != nil {
-			return fmt.Errorf("migrate embeddings to F32_BLOB: %w", err)
 		}
 	}
 	return nil

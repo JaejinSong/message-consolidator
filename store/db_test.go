@@ -306,6 +306,34 @@ func TestAddMergeProposalColumns_Idempotent(t *testing.T) {
 	}
 }
 
+// TestDropMessageEmbeddings_RemovesLegacyTable verifies the prod shape (table present) is dropped and a
+// second run, or a fresh DB that never had it, is a no-op.
+func TestDropMessageEmbeddings_RemovesLegacyTable(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	conn := GetDB()
+	if _, err := conn.ExecContext(ctx, `CREATE TABLE message_embeddings (message_id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("seed legacy table: %v", err)
+	}
+	for run := 1; run <= 2; run++ {
+		if err := dropMessageEmbeddings(ctx, conn); err != nil {
+			t.Fatalf("run %d: %v", run, err)
+		}
+	}
+	var n int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE name='message_embeddings'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("message_embeddings still present after drop")
+	}
+}
+
 func TestIdentityXTransitiveLink(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {
