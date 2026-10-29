@@ -21,16 +21,13 @@
 
 ## Go Constraints
 
-- 복잡도 ≤ 15 (`gocyclo`/`gocognit`), 라인 60 초과 시 분리 검토(의미 없는 분리는 금지)
-- 중첩 ≤ 3, Guard Clauses (early return). `if-else` 체인 대신 `switch`/early return
+- 린터가 강제하는 규칙(복잡도·중첩·에러 래핑·panic·ctx 전파·명명·WhaTap 우회 호출·TS `any`·CSS px/hex)은 [.golangci.yml](.golangci.yml) · [eslint.config.js](eslint.config.js) · [.stylelintrc.json](.stylelintrc.json)이 단일 출처이며 여기에 반복하지 않습니다. CI 필수 ([lint.yml](.github/workflows/lint.yml))
+- 라인 60 초과 시 분리 검토(의미 없는 분리는 금지). Guard Clauses (early return), `if-else` 체인 대신 `switch`/early return
 - ID는 Phantom Type (`type UserID int64`), 단순 `int64` 금지
 - `any`/`interface{}` 사용 시 사유 주석 필수
-- 에러 래핑 `fmt.Errorf("ctx: %w", err)`, 검사 `errors.Is`/`As`. 런타임 `panic` 금지
 - 모든 I/O 함수 첫 파라미터 `ctx context.Context`. `context.TODO()` 머지 전 제거
 - 인터페이스: 사용처(consumer) 정의, 메서드 ≤ 3. Accept interfaces, return structs
 - goroutine은 `ctx` 취소 또는 `done` 가드 필수. 공유 상태는 mutex/채널 중 하나로 통일
-- 약어 케이스 일관 (`userID`, `httpClient`)
-- `golangci-lint` CI 필수
 
 ## DB (sqlc)
 
@@ -58,15 +55,13 @@
 **Gotcha:**
 - Background TX 이름은 `/`로 시작 — `urlutil.NewURL`이 슬래시 없으면 Host로 파싱, Transaction 컬럼 빈 칸
 - `StartWithContext` 사용 금지 — 기존 trace ctx 없으면 silent skip. background는 `trace.Start`
-- 우회 금지: `http.DefaultClient` / `http.Get` / `sql.Open` 직접 사용 시 trace 누락
 
 **Outbound HTTP wrapping** — OAuth2 (Gmail 등): `whataphttpx.WrapClient(<oauth2.NewClient(...)>)`. 그 외 (Slack/Gemini 등): `whataphttpx.Client()`. Gemini는 `&genai.ClientConfig{APIKey, HTTPClient: whataphttpx.Client()}`로 주입.
 
 ## TypeScript / CSS
 
 - UI 전부 TypeScript (`.ts`/`.tsx`). `.js` 발견 시 즉시 `.ts` 전환
-- `any` 금지 — 불가피하면 `unknown` + type guard
-- CSS: `px`/`hex` 하드코딩 금지, `rem` 또는 `variables.css` 토큰. BEM (`block__element--modifier`)
+- 불가피한 타입 우회는 `unknown` + type guard. CSS 값은 `rem` 또는 `variables.css` 토큰, BEM (`block__element--modifier`)
 
 ## Serena
 
@@ -93,6 +88,7 @@
 ```bash
 make                  # build
 go test ./...         # 전체 테스트
+npm run lint          # eslint + stylelint
 bash unit-test.sh     # unit tests only
 sqlc generate         # DB 쿼리 코드 재생성
 ```

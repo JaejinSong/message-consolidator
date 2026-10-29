@@ -318,8 +318,8 @@
 
     /* 보고서 레이아웃 print용 펼치기 */
     html, body {
-        background: #fff !important;
-        color: #111 !important;
+        background: var(--white) !important;
+        color: var(--print-ink) !important;
     }
 
     /* glass-container / main 레이아웃 해제 */
@@ -381,11 +381,11 @@
     .c-report-content {
         font-size: 11pt !important;
         line-height: 1.6 !important;
-        color: #111 !important;
+        color: var(--print-ink) !important;
     }
 
     .c-report-content h2, .c-report-content h3 {
-        color: #000 !important;
+        color: var(--print-ink-strong) !important;
     }
 }
 

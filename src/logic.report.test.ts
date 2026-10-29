@@ -29,7 +29,7 @@ describe('Report Logic & Caching', () => {
         const report = {
             report_summary: 'English',
             translations: { ko: '한국어' }
-        } as any;
+        } as unknown as Parameters<typeof getReportSummary>[0];
         expect(getReportSummary(report, 'ko')).toBe('한국어');
         expect(getReportSummary(report, 'en')).toBe('English');
     });

@@ -9,7 +9,7 @@
 .c-commitments-view__toggle {
     display: flex;
     gap: var(--spacing-xs);
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: var(--border-thin) solid var(--glass-border);
     padding-bottom: var(--spacing-sm);
 }
 
@@ -52,8 +52,8 @@
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-md);
     background: var(--card-bg);
-    border: 1px solid var(--glass-border);
-    border-left-width: 3px;
+    border: var(--border-thin) solid var(--glass-border);
+    border-left-width: 0.1875rem;
     border-left-color: var(--glass-border);
     border-radius: var(--radius-md);
     min-width: 0;

@@ -1,5 +1,7 @@
 :root {
     --white: #ffffff;
+    --print-ink: #111111;
+    --print-ink-strong: #000000;
     --bg-color: #050608;
     --card-bg: rgba(255, 255, 255, 0.03);
     --accent-color: #00f2ff;

@@ -7,6 +7,12 @@ on:
       - "go.mod"
       - "go.sum"
       - ".golangci.yml"
+      - "src/**"
+      - "static/css/**"
+      - "package.json"
+      - "package-lock.json"
+      - "eslint.config.js"
+      - ".stylelintrc.json"
       - ".github/workflows/lint.yml"
   push:
     branches: [main]
@@ -15,6 +21,12 @@ on:
       - "go.mod"
       - "go.sum"
       - ".golangci.yml"
+      - "src/**"
+      - "static/css/**"
+      - "package.json"
+      - "package-lock.json"
+      - "eslint.config.js"
+      - ".stylelintrc.json"
       - ".github/workflows/lint.yml"
 
 permissions:
@@ -34,3 +46,14 @@ jobs:
         with:
           version: v2.12.2
           args: --timeout=5m
+  frontend:
+    name: eslint + stylelint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { apiFetch, ApiError } from './http';
 
 describe('apiFetch', () => {
@@ -7,7 +7,7 @@ describe('apiFetch', () => {
   });
 
   it('should throw AuthError when status is 401', async () => {
-    (fetch as any).mockResolvedValue({
+    (fetch as unknown as Mock).mockResolvedValue({
       status: 401,
       ok: false,
       headers: new Headers({ 'Content-Type': 'application/json' }),
@@ -27,7 +27,7 @@ describe('apiFetch', () => {
   });
 
   it('should throw AuthError when response is HTML', async () => {
-    (fetch as any).mockResolvedValue({
+    (fetch as unknown as Mock).mockResolvedValue({
       status: 200,
       ok: true,
       headers: new Headers({ 'Content-Type': 'text/html' }),
@@ -47,7 +47,7 @@ describe('apiFetch', () => {
 
   it('should return JSON when response is JSON', async () => {
     const mockData = { id: 1, text: 'hello' };
-    (fetch as any).mockResolvedValue({
+    (fetch as unknown as Mock).mockResolvedValue({
       status: 200,
       ok: true,
       headers: new Headers({ 'Content-Type': 'application/json' }),

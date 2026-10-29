@@ -9,8 +9,8 @@ import { Message } from '../types';
 
 const mockMessages: Partial<Message>[] = [
     { id: 1, task: "Original Task", task_en: "English Task", task_ko: "한국어 태스크" },
-    { id: 2, task: "Original Task", task_en: "English Task Only", task_ko: null } as any,
-    { id: 3, task: "Legacy Task", task_en: null, task_ko: null } as any,
+    { id: 2, task: "Original Task", task_en: "English Task Only", task_ko: null } as unknown as Partial<Message>,
+    { id: 3, task: "Legacy Task", task_en: null, task_ko: null } as unknown as Partial<Message>,
     { id: 4, task_en: "Source Task", task_ko: "번역됨" }
 ];
 

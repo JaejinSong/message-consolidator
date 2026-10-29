@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MessageCard } from './message-card';
+import { MessageCard, type MessageCardProps } from './message-card';
 
 describe('MessageCard Component', () => {
     const baseMessage = {
@@ -20,7 +20,7 @@ describe('MessageCard Component', () => {
             ...baseMessage,
             assigned_to: 'Jane Smith'
         };
-        const html = MessageCard(props as any);
+        const html = MessageCard(props as unknown as MessageCardProps);
         
         expect(html).toContain('c-message-card__badge--delegated');
         expect(html).toContain('@Jane Smith에게 위임됨');
@@ -28,7 +28,7 @@ describe('MessageCard Component', () => {
     });
 
     it('should not render delegated badge when assigned_to is absent', () => {
-        const html = MessageCard(baseMessage as any);
+        const html = MessageCard(baseMessage as unknown as MessageCardProps);
         
         expect(html).not.toContain('c-message-card__badge--delegated');
         expect(html).not.toContain('위임됨');
@@ -40,7 +40,7 @@ describe('MessageCard Component', () => {
             lang: 'en',
             assigned_to: 'Jane Smith'
         };
-        const html = MessageCard(props as any);
+        const html = MessageCard(props as unknown as MessageCardProps);
 
         expect(html).toContain('Delegated to @Jane Smith');
     });
@@ -64,7 +64,7 @@ describe('MessageCard exclusion candidate banner', () => {
         const html = MessageCard({
             ...baseMessage,
             metadata: { exclusion_candidate: { status: 'pending', days_stalled: 35 } }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).toContain('c-message-card__completion-candidate--exclusion');
         expect(html).toContain('data-action="confirm-exclusion"');
@@ -76,7 +76,7 @@ describe('MessageCard exclusion candidate banner', () => {
         const html = MessageCard({
             ...baseMessage,
             metadata: { exclusion_candidate: { status: 'pending' } }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).toContain('31일 이상 멈춰있는 업무입니다');
     });
@@ -86,7 +86,7 @@ describe('MessageCard exclusion candidate banner', () => {
             ...baseMessage,
             done: true,
             metadata: { exclusion_candidate: { status: 'pending' } }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).not.toContain('c-message-card__completion-candidate--exclusion');
     });
@@ -95,7 +95,7 @@ describe('MessageCard exclusion candidate banner', () => {
         const html = MessageCard({
             ...baseMessage,
             metadata: { exclusion_candidate: { status: 'confirmed' } }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).not.toContain('c-message-card__completion-candidate--exclusion');
     });
@@ -107,7 +107,7 @@ describe('MessageCard exclusion candidate banner', () => {
                 completion_candidate: { status: 'pending' },
                 exclusion_candidate: { status: 'pending' }
             }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).toContain('data-action="confirm-candidate"');
         expect(html).not.toContain('c-message-card__completion-candidate--exclusion');
@@ -118,7 +118,7 @@ describe('MessageCard exclusion candidate banner', () => {
             ...baseMessage,
             lang: 'en',
             metadata: { exclusion_candidate: { status: 'pending', days_stalled: 40 } }
-        } as any);
+        } as unknown as MessageCardProps);
 
         expect(html).toContain('Idle for 40+ days');
         expect(html).toContain('exclude from tracking?');
