@@ -361,7 +361,7 @@ SELECT * FROM token_usage WHERE report_id = ?;  -- GetReportTokenUsage
 SELECT ... FROM token_usage WHERE user_email = ? AND date = ?;  -- GetDailyTokenUsage
 
 -- 파이프라인 단계별 breakdown
-SELECT step, SUM(prompt_tokens) ... GROUP BY step;  -- GetTokenUsageByStep
+SELECT step, SUM(prompt_tokens) ... GROUP BY step;
 
 -- 모델별 비용 비교
 SELECT model, SUM(prompt_tokens) ... GROUP BY model;  -- GetTokenUsageByModel

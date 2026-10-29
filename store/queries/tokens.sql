@@ -42,18 +42,6 @@ SELECT COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COA
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?;
 
--- name: GetTokenUsageByStep :many
--- Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
-SELECT step,
-       COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
-       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
-       COALESCE(SUM(call_count), 0)        AS call_count
-FROM token_usage
-WHERE user_email = ? AND date >= ? AND date < ?
-GROUP BY step
-ORDER BY prompt_tokens DESC;
-
 -- name: GetTokenUsageByModel :many
 -- Grouped by (model, peak) so the cost dashboard can price peak-window tokens at the
 -- higher rate; a model used in both windows returns two rows.
@@ -67,17 +55,6 @@ SELECT model,
 FROM token_usage
 WHERE user_email = ? AND date >= ? AND date < ?
 GROUP BY model, peak
-ORDER BY prompt_tokens DESC;
-
--- name: GetTokenUsageBySource :many
-SELECT source,
-       COALESCE(SUM(prompt_tokens), 0)     AS prompt_tokens,
-       COALESCE(SUM(completion_tokens), 0) AS completion_tokens,
-       COALESCE(SUM(thinking_tokens), 0)   AS thinking_tokens,
-       COALESCE(SUM(call_count), 0)        AS call_count
-FROM token_usage
-WHERE user_email = ? AND date >= ? AND date < ?
-GROUP BY source
 ORDER BY prompt_tokens DESC;
 
 -- name: UpsertGmailToken :exec

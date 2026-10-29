@@ -4,14 +4,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_email, source_ts) DO NOTHING
 RETURNING id;
 
--- name: SaveMessagesBase :many
--- Note: Batching with VALUES %s is not supported by sqlc directly.
--- Using a single insert that can be called in a transaction.
-INSERT INTO messages (user_email, source, room, task, requester, assignee, assigned_at, link, source_ts, original_text, category, deadline, deadline_date, deadline_inferred, thread_id, assignee_reason, replied_to_id, is_context_query, constraints, metadata, source_channels, consolidated_context, subtasks)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(user_email, source_ts) DO NOTHING
-RETURNING id, source_ts, user_email;
-
 -- name: UpdateMessageDetails :exec
 UPDATE messages
 SET
@@ -73,7 +65,6 @@ SET task = sqlc.arg(task),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = sqlc.arg(id) AND user_email = sqlc.arg(user_email) AND room = sqlc.arg(room);
 
-
 -- name: DeleteMessages :exec
 UPDATE messages SET is_deleted = 1 WHERE user_email = ? AND id IN (sqlc.slice('ids'));
 
@@ -99,10 +90,6 @@ FROM v_messages WHERE id = ?;
 -- name: GetMessagesByIDs :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type, excluded_at
 FROM v_messages WHERE id IN (sqlc.slice('ids'));
-
--- name: GetMessagesByEmail :many
-SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, COALESCE(requester_canonical, '') as requester_canonical, COALESCE(assignee_canonical, '') as assignee_canonical, COALESCE(requester_type, '') as requester_type, COALESCE(assignee_type, '') as assignee_type
-FROM v_messages WHERE user_email = ?1 AND is_deleted = 0 AND IFNULL(task, '') != '' ORDER BY created_at DESC;
 
 -- name: RefreshCacheActive :many
 SELECT id, COALESCE(user_email, '') as user_email, COALESCE(source, '') as source, COALESCE(room, '') as room, COALESCE(task, '') as task, COALESCE(requester, '') as requester, COALESCE(assignee, '') as assignee, assigned_at, COALESCE(link, '') as link, COALESCE(source_ts, '') as source_ts, COALESCE(original_text, '') as original_text, done, is_deleted, created_at, updated_at, completed_at, COALESCE(category, '') as category, COALESCE(deadline, '') as deadline, COALESCE(thread_id, '') as thread_id, COALESCE(assignee_reason, '') as assignee_reason, COALESCE(replied_to_id, '') as replied_to_id, is_context_query, COALESCE(constraints, '') as constraints, COALESCE(metadata, '') as metadata, COALESCE(source_channels, '') as source_channels, COALESCE(consolidated_context, '') as consolidated_context, COALESCE(subtasks, '[]') as subtasks, CAST(COALESCE(substr(deadline_date, 1, 10), '') AS TEXT) AS deadline_day, COALESCE(deadline_inferred, 0) as deadline_inferred
@@ -167,7 +154,6 @@ SELECT EXISTS(
       AND IFNULL(task, '') != '' AND is_deleted = 0
 ) AS has_task;
 
-
 -- name: GetLatestThreadAssignee :one
 SELECT COALESCE(assignee, '') AS assignee
 FROM v_messages
@@ -178,10 +164,6 @@ LIMIT 1;
 
 -- name: UpdateCategoryMerged :exec
 UPDATE messages SET category = 'merged' WHERE id IN (sqlc.slice('ids')) AND user_email = ?;
-
--- name: GetMessagesForMerge :many
-SELECT id, COALESCE(task, '') as task, COALESCE(original_text, '') as original_text FROM messages WHERE id IN (sqlc.slice('ids')) AND user_email = ?;
-
 
 -- name: GetActiveTasksForContext :many
 SELECT id, task, original_text, requester, assignee, source, room,
@@ -370,24 +352,6 @@ FROM messages
 WHERE lifecycle = 'excluded'
   AND IFNULL(task,'') != ''
 ORDER BY user_email, excluded_at;
-
--- name: CountTriageOutcomes :many
--- Splits the single cancel rate into the two signals it was conflating. Why: a task
--- deleted without the user ever engaging is an extraction error; one deleted after being
--- marked done or edited was a real task that stopped mattering. Only the first is a
--- quality defect the extractor can act on.
-SELECT COALESCE(source, '') AS source,
-       CASE
-         WHEN done = 0 AND is_deleted = 1 AND confirmed_at IS NULL THEN 'dismissed_unconfirmed'
-         WHEN done = 0 AND is_deleted = 1                          THEN 'abandoned_after_engaging'
-         WHEN done = 1                                             THEN 'completed'
-         WHEN confirmed_at IS NULL                                 THEN 'inbox_open'
-         ELSE 'active_confirmed'
-       END AS outcome,
-       COUNT(*) AS total
-FROM messages
-WHERE user_email = ? AND IFNULL(task, '') <> '' AND created_at >= ?
-GROUP BY source, outcome;
 
 -- name: ListPastEventCandidates :many
 -- Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has

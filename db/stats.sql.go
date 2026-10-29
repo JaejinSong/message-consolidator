@@ -8,7 +8,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"time"
 )
 
 const getAbandonedTasks = `-- name: GetAbandonedTasks :one
@@ -116,48 +115,6 @@ func (q *Queries) GetDailyCompletions(ctx context.Context, arg GetDailyCompletio
 	return items, nil
 }
 
-const getDailyFilteredCount = `-- name: GetDailyFilteredCount :one
-SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date = ?
-`
-
-type GetDailyFilteredCountParams struct {
-	UserEmail string    `json:"user_email"`
-	Date      time.Time `json:"date"`
-}
-
-func (q *Queries) GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getDailyFilteredCount, arg.UserEmail, arg.Date)
-	var coalesce interface{}
-	err := row.Scan(&coalesce)
-	return coalesce, err
-}
-
-const getEarlyBirdCompleted = `-- name: GetEarlyBirdCompleted :one
-SELECT COUNT(*) FROM messages
-WHERE user_email = CAST(?1 AS TEXT) AND done = 1
-AND strftime('%H', completed_at, 'localtime') < '09'
-`
-
-func (q *Queries) GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getEarlyBirdCompleted, dollar_1)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const getEmergencyCompleted = `-- name: GetEmergencyCompleted :one
-SELECT COUNT(*) FROM messages
-WHERE user_email = ? AND done = 1
-AND category = 'emergency'
-`
-
-func (q *Queries) GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getEmergencyCompleted, userEmail)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getHourlyActivity = `-- name: GetHourlyActivity :many
 SELECT strftime('%H', completed_at, ?) as hr, COUNT(*) as c
 FROM messages 
@@ -196,38 +153,6 @@ func (q *Queries) GetHourlyActivity(ctx context.Context, arg GetHourlyActivityPa
 		return nil, err
 	}
 	return items, nil
-}
-
-const getMaxDailyCompleted = `-- name: GetMaxDailyCompleted :one
-SELECT COALESCE(MAX(c), 0) FROM (
-  SELECT COUNT(*) as c FROM messages 
-  WHERE user_email = CAST(?1 AS TEXT) AND done = 1
-  GROUP BY strftime('%Y-%m-%d', completed_at, 'localtime')
-)
-`
-
-func (q *Queries) GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getMaxDailyCompleted, dollar_1)
-	var coalesce interface{}
-	err := row.Scan(&coalesce)
-	return coalesce, err
-}
-
-const getMonthlyFilteredCount = `-- name: GetMonthlyFilteredCount :one
-SELECT COALESCE(SUM(filtered_count), 0) FROM token_usage WHERE user_email = ? AND date >= ? AND date < ?
-`
-
-type GetMonthlyFilteredCountParams struct {
-	UserEmail string    `json:"user_email"`
-	Date      time.Time `json:"date"`
-	Date_2    time.Time `json:"date_2"`
-}
-
-func (q *Queries) GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getMonthlyFilteredCount, arg.UserEmail, arg.Date, arg.Date_2)
-	var coalesce interface{}
-	err := row.Scan(&coalesce)
-	return coalesce, err
 }
 
 const getPendingMe = `-- name: GetPendingMe :one

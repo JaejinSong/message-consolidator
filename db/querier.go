@@ -21,14 +21,7 @@ type Querier interface {
 	ConfirmExclusion(ctx context.Context, arg ConfirmExclusionParams) (int64, error)
 	// Rescued rows are left untouched.
 	ConfirmFilterNoise(ctx context.Context, arg ConfirmFilterNoiseParams) (int64, error)
-	// Drop counts per stage/verdict/source, to compare against task creation over the same window.
-	CountExtractionDecisions(ctx context.Context, arg CountExtractionDecisionsParams) ([]CountExtractionDecisionsRow, error)
 	CountLearnedExamplesByOrigin(ctx context.Context, arg CountLearnedExamplesByOriginParams) (int64, error)
-	// Splits the single cancel rate into the two signals it was conflating. Why: a task
-	// deleted without the user ever engaging is an extraction error; one deleted after being
-	// marked done or edited was a real task that stopped mattering. Only the first is a
-	// quality defect the extractor can act on.
-	CountTriageOutcomes(ctx context.Context, arg CountTriageOutcomesParams) ([]CountTriageOutcomesRow, error)
 	CreateAIInferenceLogsTable(ctx context.Context) error
 	CreateAppSettingsTable(ctx context.Context) error
 	CreateContactResolutionTable(ctx context.Context) error
@@ -86,21 +79,16 @@ type Querier interface {
 	DeleteGrant(ctx context.Context, arg DeleteGrantParams) error
 	DeleteLearnedExample(ctx context.Context, arg DeleteLearnedExampleParams) error
 	DeleteMessages(ctx context.Context, arg DeleteMessagesParams) error
-	DeleteOldReports(ctx context.Context) error
 	DeleteReport(ctx context.Context, arg DeleteReportParams) error
-	DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteSlackUserToken(ctx context.Context, userEmail string) error
 	DeleteTaskTranslations(ctx context.Context, messageID sql.NullInt64) error
 	DeleteTelegramSession(ctx context.Context, email string) error
-	DeleteTenantAlias(ctx context.Context, arg DeleteTenantAliasParams) error
-	DeleteUserAlias(ctx context.Context, arg DeleteUserAliasParams) error
 	FindMasterContactByDisplayName(ctx context.Context, arg FindMasterContactByDisplayNameParams) ([]FindMasterContactByDisplayNameRow, error)
 	FlattenContactChildren(ctx context.Context, arg FlattenContactChildrenParams) error
 	GetAbandonedTasks(ctx context.Context, arg GetAbandonedTasksParams) (int64, error)
 	GetActiveSlackThreadsNew(ctx context.Context) ([]GetActiveSlackThreadsNewRow, error)
 	GetActiveTasksForContext(ctx context.Context, arg GetActiveTasksForContextParams) ([]GetActiveTasksForContextRow, error)
-	GetAllTenantAliases(ctx context.Context) ([]GetAllTenantAliasesRow, error)
 	GetAllUserAliases(ctx context.Context) ([]GetAllUserAliasesRow, error)
 	GetAllUsers(ctx context.Context) ([]User, error)
 	GetAppSetting(ctx context.Context, key string) (AppSetting, error)
@@ -115,15 +103,11 @@ type Querier interface {
 	GetContactTypeByID(ctx context.Context, arg GetContactTypeByIDParams) (sql.NullString, error)
 	GetContactsByIDs(ctx context.Context, ids []int64) ([]GetContactsByIDsRow, error)
 	GetContactsByTenant(ctx context.Context, tenantEmail string) ([]GetContactsByTenantRow, error)
-	GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error)
 	GetContactsWithMaster(ctx context.Context) ([]GetContactsWithMasterRow, error)
 	GetCorrectionObservation(ctx context.Context, arg GetCorrectionObservationParams) (CorrectionObservation, error)
 	GetDailyCompletions(ctx context.Context, arg GetDailyCompletionsParams) ([]GetDailyCompletionsRow, error)
-	GetDailyFilteredCount(ctx context.Context, arg GetDailyFilteredCountParams) (interface{}, error)
 	GetDailyTokenUsage(ctx context.Context, arg GetDailyTokenUsageParams) (GetDailyTokenUsageRow, error)
 	GetDisplayNameByID(ctx context.Context, id int64) (string, error)
-	GetEarlyBirdCompleted(ctx context.Context, dollar_1 string) (int64, error)
-	GetEmergencyCompleted(ctx context.Context, userEmail sql.NullString) (int64, error)
 	GetFilterScore(ctx context.Context, arg GetFilterScoreParams) (FilterScore, error)
 	GetGmailToken(ctx context.Context, userEmail string) (string, error)
 	GetGrant(ctx context.Context, arg GetGrantParams) (TaskGrant, error)
@@ -132,11 +116,8 @@ type Querier interface {
 	GetLatestThreadAssignee(ctx context.Context, arg GetLatestThreadAssigneeParams) (string, error)
 	GetLinkedContacts(ctx context.Context, tenantEmail string) ([]GetLinkedContactsRow, error)
 	GetMasterAndTypeByID(ctx context.Context, arg GetMasterAndTypeByIDParams) (GetMasterAndTypeByIDRow, error)
-	GetMaxDailyCompleted(ctx context.Context, dollar_1 string) (interface{}, error)
 	GetMessageByID(ctx context.Context, id int64) (GetMessageByIDRow, error)
-	GetMessagesByEmail(ctx context.Context, userEmail string) ([]GetMessagesByEmailRow, error)
 	GetMessagesByIDs(ctx context.Context, ids []int64) ([]GetMessagesByIDsRow, error)
-	GetMessagesForMerge(ctx context.Context, arg GetMessagesForMergeParams) ([]GetMessagesForMergeRow, error)
 	// Why: updated_at is NULL for any task never re-touched after creation, and a NULL
 	// comparison is false, so those rows were dropped from every report window including
 	// the unbounded stalled fetch. Falling back to created_at keeps never-updated tasks -- the
@@ -146,12 +127,10 @@ type Querier interface {
 	// auto-sweep of completed tasks (still valid evidence). category=merged rows were
 	// absorbed into another task; counting them inflates activity and edge weights.
 	GetMessagesForReport(ctx context.Context, arg GetMessagesForReportParams) ([]GetMessagesForReportRow, error)
-	GetMonthlyFilteredCount(ctx context.Context, arg GetMonthlyFilteredCountParams) (interface{}, error)
 	GetMonthlyTokenUsage(ctx context.Context, arg GetMonthlyTokenUsageParams) (GetMonthlyTokenUsageRow, error)
 	GetPendingMe(ctx context.Context, arg GetPendingMeParams) (int64, error)
 	GetPendingOthers(ctx context.Context, arg GetPendingOthersParams) (int64, error)
 	GetRecentIncompleteGmail(ctx context.Context, userEmail string) ([]VMessage, error)
-	GetReport(ctx context.Context, arg GetReportParams) (GetReportRow, error)
 	GetReportByDate(ctx context.Context, arg GetReportByDateParams) (GetReportByDateRow, error)
 	GetReportByID(ctx context.Context, arg GetReportByIDParams) (GetReportByIDRow, error)
 	GetReportList(ctx context.Context, userEmail string) ([]GetReportListRow, error)
@@ -164,7 +143,6 @@ type Querier interface {
 	GetSourceDistributionActive(ctx context.Context, dollar_1 string) ([]GetSourceDistributionActiveRow, error)
 	GetSourceDistributionTotal(ctx context.Context, dollar_1 string) ([]GetSourceDistributionTotalRow, error)
 	GetTaskCountByContactType(ctx context.Context, userEmail string) ([]GetTaskCountByContactTypeRow, error)
-	GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error)
 	GetTaskTranslationsBatch(ctx context.Context, arg GetTaskTranslationsBatchParams) ([]GetTaskTranslationsBatchRow, error)
 	GetTelegramCredentials(ctx context.Context, email string) (GetTelegramCredentialsRow, error)
 	GetTelegramSession(ctx context.Context, email string) ([]byte, error)
@@ -172,16 +150,11 @@ type Querier interface {
 	// Grouped by (model, peak) so the cost dashboard can price peak-window tokens at the
 	// higher rate; a model used in both windows returns two rows.
 	GetTokenUsageByModel(ctx context.Context, arg GetTokenUsageByModelParams) ([]GetTokenUsageByModelRow, error)
-	GetTokenUsageBySource(ctx context.Context, arg GetTokenUsageBySourceParams) ([]GetTokenUsageBySourceRow, error)
-	// Dashboard: per-step breakdown over a date range (inclusive start, exclusive end).
-	GetTokenUsageByStep(ctx context.Context, arg GetTokenUsageByStepParams) ([]GetTokenUsageByStepRow, error)
 	GetTotalCompleted(ctx context.Context, dollar_1 string) (int64, error)
 	GetUnprocessedLineMessages(ctx context.Context) ([]LineInbox, error)
-	GetUserAliases(ctx context.Context, userID int64) ([]string, error)
 	GetUserAliasesByEmail(ctx context.Context, email sql.NullString) ([]string, error)
 	GetUserByEmail(ctx context.Context, email sql.NullString) (User, error)
 	GetUserByEmailSimple(ctx context.Context, email sql.NullString) (string, error)
-	GetUserByID(ctx context.Context, dollar_1 int64) (User, error)
 	GetUserBySlackID(ctx context.Context, slackID sql.NullString) (User, error)
 	HardDeleteMessages(ctx context.Context, arg HardDeleteMessagesParams) error
 	HasAnyTaskInThread(ctx context.Context, arg HasAnyTaskInThreadParams) (int64, error)
@@ -207,13 +180,10 @@ type Querier interface {
 	// Unlabeled noise drops whose score sits in [lo, hi), closest to the threshold first.
 	ListBorderlineDrops(ctx context.Context, arg ListBorderlineDropsParams) ([]FilterScore, error)
 	ListCorrectionObservationsByStatus(ctx context.Context, arg ListCorrectionObservationsByStatusParams) ([]CorrectionObservation, error)
-	// Newest first, for sampling what the pipeline threw away.
-	ListExtractionDecisions(ctx context.Context, arg ListExtractionDecisionsParams) ([]ExtractionDecision, error)
 	// Newest first, noise verdicts only.
 	ListFilterDrops(ctx context.Context, arg ListFilterDropsParams) ([]FilterScore, error)
 	ListFilterScoresSince(ctx context.Context, arg ListFilterScoresSinceParams) ([]FilterScore, error)
 	ListFilterUsers(ctx context.Context, createdAt sql.NullTime) ([]string, error)
-	ListGrantorsFor(ctx context.Context, granteeUserID int64) ([]User, error)
 	ListLearnedExamples(ctx context.Context, arg ListLearnedExamplesParams) ([]LearnedExample, error)
 	ListLearnedExamplesBySource(ctx context.Context, arg ListLearnedExamplesBySourceParams) ([]LearnedExample, error)
 	// Why: Event-style TASK rows (meetings, calls, sessions) whose scheduled date has
@@ -236,7 +206,6 @@ type Querier interface {
 	ListReplayableWAMessages(ctx context.Context, arg ListReplayableWAMessagesParams) ([]ListReplayableWAMessagesRow, error)
 	ListReports(ctx context.Context, userEmail string) ([]ListReportsRow, error)
 	ListWAMessages(ctx context.Context, arg ListWAMessagesParams) ([]ListWAMessagesRow, error)
-	LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error)
 	LoadGmailTokensAll(ctx context.Context) ([]LoadGmailTokensAllRow, error)
 	LoadScanMetadataAll(ctx context.Context) ([]LoadScanMetadataAllRow, error)
 	LoadSlackUserTokensAll(ctx context.Context) ([]LoadSlackUserTokensAllRow, error)
@@ -266,9 +235,6 @@ type Querier interface {
 	// Why: restore is user activity. Reset updated_at for a fresh long-term-unprocessed
 	// runway and clear exclusion markers so the scan can re-evaluate from scratch.
 	RestoreMessages(ctx context.Context, arg RestoreMessagesParams) error
-	// Note: Batching with VALUES %s is not supported by sqlc directly.
-	// Using a single insert that can be called in a transaction.
-	SaveMessagesBase(ctx context.Context, arg SaveMessagesBaseParams) ([]SaveMessagesBaseRow, error)
 	SaveTaskTranslationForSource(ctx context.Context, arg SaveTaskTranslationForSourceParams) (sql.NullInt64, error)
 	SearchArchivedMessages(ctx context.Context, arg SearchArchivedMessagesParams) ([]SearchArchivedMessagesRow, error)
 	SearchArchivedMessagesCount(ctx context.Context, arg SearchArchivedMessagesCountParams) (int64, error)
@@ -323,10 +289,8 @@ type Querier interface {
 	UpsertScanMetadata(ctx context.Context, arg UpsertScanMetadataParams) error
 	UpsertSlackThread(ctx context.Context, arg UpsertSlackThreadParams) error
 	UpsertSlackUserToken(ctx context.Context, arg UpsertSlackUserTokenParams) error
-	UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error
 	UpsertTelegramCredentials(ctx context.Context, arg UpsertTelegramCredentialsParams) error
 	UpsertTelegramSession(ctx context.Context, arg UpsertTelegramSessionParams) error
-	UpsertTenantAlias(ctx context.Context, arg UpsertTenantAliasParams) error
 	// peak marks the DeepSeek peak-rate window (UTC 01-04 and 06-10, Mon-Fri) the call landed
 	// in, decided at record time; date alone cannot recover it.
 	UpsertTokenUsage(ctx context.Context, arg UpsertTokenUsageParams) error

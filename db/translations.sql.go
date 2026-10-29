@@ -20,22 +20,6 @@ func (q *Queries) DeleteTaskTranslations(ctx context.Context, messageID sql.Null
 	return err
 }
 
-const getTaskTranslation = `-- name: GetTaskTranslation :one
-SELECT translated_text FROM task_translations WHERE message_id = ? AND language_code = ?
-`
-
-type GetTaskTranslationParams struct {
-	MessageID    sql.NullInt64 `json:"message_id"`
-	LanguageCode string        `json:"language_code"`
-}
-
-func (q *Queries) GetTaskTranslation(ctx context.Context, arg GetTaskTranslationParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getTaskTranslation, arg.MessageID, arg.LanguageCode)
-	var translated_text string
-	err := row.Scan(&translated_text)
-	return translated_text, err
-}
-
 const getTaskTranslationsBatch = `-- name: GetTaskTranslationsBatch :many
 SELECT tt.message_id, tt.translated_text, m.task FROM task_translations tt
 JOIN messages m ON m.id = tt.message_id
@@ -113,22 +97,4 @@ func (q *Queries) SaveTaskTranslationForSource(ctx context.Context, arg SaveTask
 	var message_id sql.NullInt64
 	err := row.Scan(&message_id)
 	return message_id, err
-}
-
-const upsertTaskTranslation = `-- name: UpsertTaskTranslation :exec
-INSERT INTO task_translations (message_id, language_code, translated_text)
-VALUES (?, ?, ?)
-ON CONFLICT (message_id, language_code) 
-DO UPDATE SET translated_text = EXCLUDED.translated_text
-`
-
-type UpsertTaskTranslationParams struct {
-	MessageID      sql.NullInt64 `json:"message_id"`
-	LanguageCode   string        `json:"language_code"`
-	TranslatedText string        `json:"translated_text"`
-}
-
-func (q *Queries) UpsertTaskTranslation(ctx context.Context, arg UpsertTaskTranslationParams) error {
-	_, err := q.db.ExecContext(ctx, upsertTaskTranslation, arg.MessageID, arg.LanguageCode, arg.TranslatedText)
-	return err
 }

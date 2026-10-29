@@ -10,21 +10,6 @@ import (
 	"database/sql"
 )
 
-const deleteScanMetadataSlackThread = `-- name: DeleteScanMetadataSlackThread :exec
-DELETE FROM scan_metadata 
-WHERE user_email = ? AND source = 'slack_thread' AND target_id = ?
-`
-
-type DeleteScanMetadataSlackThreadParams struct {
-	UserEmail string `json:"user_email"`
-	TargetID  string `json:"target_id"`
-}
-
-func (q *Queries) DeleteScanMetadataSlackThread(ctx context.Context, arg DeleteScanMetadataSlackThreadParams) error {
-	_, err := q.db.ExecContext(ctx, deleteScanMetadataSlackThread, arg.UserEmail, arg.TargetID)
-	return err
-}
-
 const isSourceTSProcessed = `-- name: IsSourceTSProcessed :one
 SELECT EXISTS(
     SELECT 1 FROM scan_metadata 

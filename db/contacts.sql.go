@@ -257,48 +257,6 @@ func (q *Queries) GetContactsByTenant(ctx context.Context, tenantEmail string) (
 	return items, nil
 }
 
-const getContactsByValues = `-- name: GetContactsByValues :many
-SELECT id, canonical_id, display_name, secondary_ids FROM contacts
-WHERE LOWER(canonical_id) IN (/*SLICE:values*/?)
-   OR LOWER(display_name) IN (/*SLICE:values*/?)
-   OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (/*SLICE:values*/?))
-`
-
-type GetContactsByValuesRow struct {
-	ID           int64          `json:"id"`
-	CanonicalID  string         `json:"canonical_id"`
-	DisplayName  string         `json:"display_name"`
-	SecondaryIds sql.NullString `json:"secondary_ids"`
-}
-
-func (q *Queries) GetContactsByValues(ctx context.Context) ([]GetContactsByValuesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getContactsByValues)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetContactsByValuesRow
-	for rows.Next() {
-		var i GetContactsByValuesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CanonicalID,
-			&i.DisplayName,
-			&i.SecondaryIds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getContactsWithMaster = `-- name: GetContactsWithMaster :many
 SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL
 `
@@ -484,47 +442,6 @@ type InsertMergeHistoryParams struct {
 func (q *Queries) InsertMergeHistory(ctx context.Context, arg InsertMergeHistoryParams) error {
 	_, err := q.db.ExecContext(ctx, insertMergeHistory, arg.SourceContactID, arg.TargetContactID, arg.Reason)
 	return err
-}
-
-const loadContactsAll = `-- name: LoadContactsAll :many
-SELECT tenant_email, canonical_id, display_name, source, contact_type FROM contacts
-`
-
-type LoadContactsAllRow struct {
-	TenantEmail string         `json:"tenant_email"`
-	CanonicalID string         `json:"canonical_id"`
-	DisplayName string         `json:"display_name"`
-	Source      sql.NullString `json:"source"`
-	ContactType sql.NullString `json:"contact_type"`
-}
-
-func (q *Queries) LoadContactsAll(ctx context.Context) ([]LoadContactsAllRow, error) {
-	rows, err := q.db.QueryContext(ctx, loadContactsAll)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LoadContactsAllRow
-	for rows.Next() {
-		var i LoadContactsAllRow
-		if err := rows.Scan(
-			&i.TenantEmail,
-			&i.CanonicalID,
-			&i.DisplayName,
-			&i.Source,
-			&i.ContactType,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const searchContacts = `-- name: SearchContacts :many

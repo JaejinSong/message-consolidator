@@ -4,9 +4,6 @@ SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created
 -- name: GetUserByEmail :one
 SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE email = ?1;
 
--- name: GetUserByID :one
-SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE id = CAST(?1 AS INTEGER);
-
 -- name: UpsertUser :one
 INSERT INTO users (email, name, picture)
 VALUES (?1, ?2, ?3)

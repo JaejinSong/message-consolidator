@@ -10,9 +10,6 @@ RETURNING id;
 DELETE FROM contacts
 WHERE tenant_email = ? AND canonical_id = ?;
 
--- name: LoadContactsAll :many
-SELECT tenant_email, canonical_id, display_name, source, contact_type FROM contacts;
-
 -- name: SearchContacts :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type
 FROM contacts
@@ -35,15 +32,8 @@ SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, 
 FROM contacts
 WHERE tenant_email = ? AND master_contact_id IS NOT NULL;
 
-
 -- name: GetContactsWithMaster :many
 SELECT id, master_contact_id FROM contacts WHERE master_contact_id IS NOT NULL;
-
--- name: GetContactsByValues :many
-SELECT id, canonical_id, display_name, secondary_ids FROM contacts
-WHERE LOWER(canonical_id) IN (sqlc.slice('values'))
-   OR LOWER(display_name) IN (sqlc.slice('values'))
-   OR EXISTS (SELECT 1 FROM json_each(secondary_ids) WHERE LOWER(value) IN (sqlc.slice('values')));
 
 -- name: GetContactsByTenant :many
 SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, contact_type, secondary_ids FROM contacts WHERE tenant_email = ?;
@@ -55,7 +45,6 @@ SELECT id, tenant_email, canonical_id, display_name, source, master_contact_id, 
 UPDATE contacts
 SET secondary_ids = json_insert(COALESCE(secondary_ids, '[]'), '$[#]', ?1)
 WHERE id = ?2;
-
 
 -- name: InsertMergeHistory :exec
 INSERT INTO identity_merge_history (source_contact_id, target_contact_id, reason)

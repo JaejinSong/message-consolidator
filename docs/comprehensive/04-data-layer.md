@@ -374,7 +374,6 @@ erDiagram
 #### `reports`
 - **책임**: 사용자별 주간/기간 활동 보고서 메타데이터 저장. `visualization` 컬럼에 JSON 직렬화된 시각화 데이터 전체를 보관.
 - **주요 컬럼**: `user_email`, `start_date`, `end_date`, `visualization TEXT`, `status DEFAULT 'completed'`, `is_truncated`
-- **TTL**: `DeleteOldReports` 쿼리로 30일 경과 레코드 자동 삭제
 
 #### `report_translations`
 - **책임**: 보고서 요약 텍스트의 언어별 번역 저장. 보고서 본문(`visualization`)과 분리하여 번역만 갱신 가능.
@@ -382,7 +381,7 @@ erDiagram
 - **외래키**: `report_id → reports(id) ON DELETE CASCADE`
 - **비고**: `language_deprecated` — task_translations 와 동일한 호환성 컬럼
 
-**English:** `reports` stores serialised visualisation JSON alongside metadata; the 30-day TTL is enforced by `DeleteOldReports`. `report_translations` separates translated summaries from the visualisation blob so that re-translation does not require rewriting the entire report row. Both tables cascade-delete on parent removal.
+**English:** `reports` stores serialised visualisation JSON alongside metadata; rows are never expired. `report_translations` separates translated summaries from the visualisation blob so that re-translation does not require rewriting the entire report row. Both tables cascade-delete on parent removal.
 
 ### 4.5 운영/메타 엔티티
 

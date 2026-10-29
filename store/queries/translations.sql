@@ -1,6 +1,3 @@
--- name: GetTaskTranslation :one
-SELECT translated_text FROM task_translations WHERE message_id = ? AND language_code = ?;
-
 -- name: GetTaskTranslationsBatch :many
 SELECT tt.message_id, tt.translated_text, m.task FROM task_translations tt
 JOIN messages m ON m.id = tt.message_id
@@ -13,12 +10,6 @@ WHERE m.id = sqlc.arg(message_id) AND m.task = sqlc.arg(source_task)
 ON CONFLICT (message_id, language_code)
 DO UPDATE SET translated_text = EXCLUDED.translated_text
 RETURNING message_id;
-
--- name: UpsertTaskTranslation :exec
-INSERT INTO task_translations (message_id, language_code, translated_text)
-VALUES (?, ?, ?)
-ON CONFLICT (message_id, language_code) 
-DO UPDATE SET translated_text = EXCLUDED.translated_text;
 
 -- name: DeleteTaskTranslations :exec
 DELETE FROM task_translations WHERE message_id = ?;

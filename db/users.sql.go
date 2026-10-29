@@ -108,27 +108,6 @@ func (q *Queries) GetUserByEmailSimple(ctx context.Context, email sql.NullString
 	return name, err
 }
 
-const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE id = CAST(?1 AS INTEGER)
-`
-
-func (q *Queries) GetUserByID(ctx context.Context, dollar_1 int64) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByID, dollar_1)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Name,
-		&i.SlackID,
-		&i.WaJid,
-		&i.TgUserID,
-		&i.Picture,
-		&i.IsAdmin,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getUserBySlackID = `-- name: GetUserBySlackID :one
 SELECT id, email, name, slack_id, wa_jid, tg_user_id, picture, is_admin, created_at FROM users WHERE slack_id = ?1 LIMIT 1
 `

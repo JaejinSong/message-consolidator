@@ -11,15 +11,6 @@ import (
 	"strings"
 )
 
-const deleteOldReports = `-- name: DeleteOldReports :exec
-DELETE FROM reports WHERE created_at < datetime('now', '-30 days')
-`
-
-func (q *Queries) DeleteOldReports(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldReports)
-	return err
-}
-
 const deleteReport = `-- name: DeleteReport :exec
 DELETE FROM reports WHERE id = ? AND user_email = ?
 `
@@ -167,48 +158,6 @@ func (q *Queries) GetMessagesForReport(ctx context.Context, arg GetMessagesForRe
 		return nil, err
 	}
 	return items, nil
-}
-
-const getReport = `-- name: GetReport :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
-FROM reports r
-LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
-WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?
-`
-
-type GetReportParams struct {
-	UserEmail string `json:"user_email"`
-	StartDate string `json:"start_date"`
-	EndDate   string `json:"end_date"`
-}
-
-type GetReportRow struct {
-	ID            int64          `json:"id"`
-	UserEmail     string         `json:"user_email"`
-	StartDate     string         `json:"start_date"`
-	EndDate       string         `json:"end_date"`
-	Visualization string         `json:"visualization"`
-	Status        sql.NullString `json:"status"`
-	IsTruncated   sql.NullInt64  `json:"is_truncated"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
-	Summary       string         `json:"summary"`
-}
-
-func (q *Queries) GetReport(ctx context.Context, arg GetReportParams) (GetReportRow, error) {
-	row := q.db.QueryRowContext(ctx, getReport, arg.UserEmail, arg.StartDate, arg.EndDate)
-	var i GetReportRow
-	err := row.Scan(
-		&i.ID,
-		&i.UserEmail,
-		&i.StartDate,
-		&i.EndDate,
-		&i.Visualization,
-		&i.Status,
-		&i.IsTruncated,
-		&i.CreatedAt,
-		&i.Summary,
-	)
-	return i, err
 }
 
 const getReportByDate = `-- name: GetReportByDate :one

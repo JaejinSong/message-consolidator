@@ -8,12 +8,6 @@ INSERT INTO report_translations (report_id, language_code, summary)
 VALUES (?, ?, ?)
 ON CONFLICT(report_id, language_code) DO UPDATE SET summary = EXCLUDED.summary;
 
--- name: GetReport :one
-SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
-FROM reports r
-LEFT JOIN report_translations rt ON r.id = rt.report_id AND rt.language_code = 'en'
-WHERE r.user_email = ? AND r.start_date = ? AND r.end_date = ?;
-
 -- name: GetReportByDate :one
 SELECT r.id, r.user_email, r.start_date, r.end_date, r.visualization, r.status, r.is_truncated, r.created_at, COALESCE(rt.summary, '') as summary
 FROM reports r
@@ -44,10 +38,6 @@ WHERE m.user_email = ?
   AND (sqlc.narg('source') IS NULL OR m.source = sqlc.narg('source'))
   AND (sqlc.narg('done') IS NULL OR m.done = sqlc.narg('done'))
 ORDER BY m.created_at DESC;
-
-
--- name: DeleteOldReports :exec
-DELETE FROM reports WHERE created_at < datetime('now', '-30 days');
 
 -- name: ListReports :many
 SELECT r.id, r.start_date, r.end_date, r.created_at, r.status, r.is_truncated, COALESCE(rt.summary, '') as summary
