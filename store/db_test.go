@@ -285,6 +285,27 @@ func TestColumnExists(t *testing.T) {
 	}
 }
 
+// TestAddMergeProposalColumns_Idempotent verifies a fresh schema carries the proposal columns and a
+// second run (the prod shape, where they already exist) is a no-op.
+func TestAddMergeProposalColumns_Idempotent(t *testing.T) {
+	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
+	if err != nil {
+		t.Fatalf("Failed to setup test DB: %v", err)
+	}
+	defer cleanup()
+
+	ctx := context.Background()
+	conn := GetDB()
+	if err := addMergeProposalColumns(ctx, conn); err != nil {
+		t.Fatalf("second run must be a no-op, got %v", err)
+	}
+	for _, col := range []string{"proposal_group_id", "canonical_name"} {
+		if !columnExists(ctx, conn, "identity_merge_candidates", col) {
+			t.Errorf("identity_merge_candidates.%s missing", col)
+		}
+	}
+}
+
 func TestIdentityXTransitiveLink(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(InitDB, ResetForTest)
 	if err != nil {

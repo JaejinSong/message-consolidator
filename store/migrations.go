@@ -14,7 +14,7 @@ import (
 // schemaVersion gates DDL replay on startup. Bump whenever this file changes
 // (new tables, view rebuild logic, indexes, FTS) so existing prod DBs re-run
 // migrations on next deploy. Stored in app_settings under key "schema_version".
-const schemaVersion = 25
+const schemaVersion = 26
 
 func schemaIsCurrent(ctx context.Context, dbConn *sql.DB) bool {
 	queries := db.New(dbConn)
@@ -315,6 +315,27 @@ func addDeadlineColumns(ctx context.Context, q db.DBTX) error {
 		}
 		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
 			return fmt.Errorf("add messages.%s: %w", col.name, err)
+		}
+	}
+	return nil
+}
+
+// addMergeProposalColumns (v26) adds the AI-proposal grouping columns to identity_merge_candidates.
+// Why: prod gained them out of band and no DDL here ever created them, so any fresh DB answered
+// /identity/proposals with 500. Idempotent via the pragma_table_info check.
+func addMergeProposalColumns(ctx context.Context, q db.DBTX) error {
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{"proposal_group_id", "ALTER TABLE identity_merge_candidates ADD COLUMN proposal_group_id TEXT"},
+		{"canonical_name", "ALTER TABLE identity_merge_candidates ADD COLUMN canonical_name TEXT"},
+	} {
+		if columnExists(ctx, q, "identity_merge_candidates", col.name) {
+			continue
+		}
+		if _, err := q.ExecContext(ctx, col.ddl); err != nil {
+			return fmt.Errorf("add identity_merge_candidates.%s: %w", col.name, err)
 		}
 	}
 	return nil

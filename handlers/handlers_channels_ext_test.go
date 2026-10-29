@@ -48,6 +48,7 @@ func TestHandleWhatsAppLogout_NoClient(t *testing.T) {
 
 // TestHandleListProposals_WithDB exercises the SQL error path when proposal schema is missing.
 // ListPendingProposalGroups returns SQL error → handler responds with 500.
+// TestHandleListProposals_WithDB verifies a fresh schema answers an empty proposal list with 200 and [].
 func TestHandleListProposals_WithDB(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -62,14 +63,17 @@ func TestHandleListProposals_WithDB(t *testing.T) {
 	req := NewMockRequest("GET", "/api/identity/proposals", email)
 	rr := httptest.NewRecorder()
 	api.HandleListProposals(rr, req)
-	// SQL error from missing schema → 500; or empty list → 200. Both are non-400.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%s", rr.Code, rr.Body.String())
+	}
+	if got := strings.TrimSpace(rr.Body.String()); got != "[]" {
+		t.Errorf("body = %s, want []", got)
 	}
 }
 
 // TestHandleRejectProposal_WithDB exercises the SQL error path — identity_merge_candidates
 // table missing canonical_name in test schema, so store returns error → handler responds 500.
+// TestHandleRejectProposal_WithDB verifies rejecting an unknown group is an idempotent 200 on a fresh schema.
 func TestHandleRejectProposal_WithDB(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -86,9 +90,8 @@ func TestHandleRejectProposal_WithDB(t *testing.T) {
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
 	api.HandleRejectProposal(rr, req)
-	// SQL error from missing schema column or no-op DELETE — 500 or 200 both acceptable.
-	if rr.Code == http.StatusBadRequest {
-		t.Errorf("unexpected 400 body=%s", rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 body=%s", rr.Code, rr.Body.String())
 	}
 }
 
