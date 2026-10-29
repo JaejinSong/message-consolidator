@@ -4,7 +4,7 @@ import "testing"
 
 func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	for _, k := range []string{
-		"AI_PROVIDER", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+		"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
 		"DEEPSEEK_FILTER_MODEL", "DEEPSEEK_ANALYSIS_MODEL",
 		"DEEPSEEK_TRANSLATION_MODEL", "DEEPSEEK_REPORT_MODEL",
 	} {
@@ -12,9 +12,6 @@ func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	}
 
 	cfg := LoadConfig()
-	if cfg.AIProvider != "gemini" {
-		t.Errorf("AIProvider default = %q, want gemini", cfg.AIProvider)
-	}
 	if cfg.DeepSeekBaseURL != "https://ollama.com/v1" {
 		t.Errorf("DeepSeekBaseURL default = %q", cfg.DeepSeekBaseURL)
 	}
@@ -26,27 +23,13 @@ func TestLoadConfigDeepSeekDefaults(t *testing.T) {
 	}
 }
 
-func TestRegistryDeepSeekAndProvider(t *testing.T) {
+func TestRegistryDeepSeek(t *testing.T) {
 	key := FindDef("DEEPSEEK_API_KEY")
 	if key == nil {
 		t.Fatal("DEEPSEEK_API_KEY not registered")
 	}
 	if !key.Secret || !key.RestartRequired {
 		t.Errorf("DEEPSEEK_API_KEY must be Secret + RestartRequired, got Secret=%v RestartRequired=%v", key.Secret, key.RestartRequired)
-	}
-
-	prov := FindDef("AI_PROVIDER")
-	if prov == nil {
-		t.Fatal("AI_PROVIDER not registered")
-	}
-	if err := ValidateSetting(prov, "deepseek"); err != nil {
-		t.Errorf("ValidateSetting(AI_PROVIDER, deepseek) = %v, want nil", err)
-	}
-	if err := ValidateSetting(prov, "gemini"); err != nil {
-		t.Errorf("ValidateSetting(AI_PROVIDER, gemini) = %v, want nil", err)
-	}
-	if err := ValidateSetting(prov, "openai"); err == nil {
-		t.Error("ValidateSetting(AI_PROVIDER, openai) should reject unknown provider")
 	}
 }
 

@@ -120,8 +120,8 @@ func TestHandleGetTokenUsage(t *testing.T) {
 	if jsonErr := json.Unmarshal(rr.Body.Bytes(), &body); jsonErr != nil {
 		t.Fatalf("body not JSON: %v", jsonErr)
 	}
-	if model, ok := body["model"]; !ok || model != "Gemini 3 Flash" {
-		t.Errorf("expected model=Gemini 3 Flash, got %v", body["model"])
+	if model, ok := body["model"]; !ok || model != "DeepSeek" {
+		t.Errorf("expected model=DeepSeek, got %v", body["model"])
 	}
 }
 
@@ -539,8 +539,8 @@ func TestHandleUserInfo(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected token_usage object, got %T", body["token_usage"])
 		}
-		if tokenUsage["model"] != "Gemini 3 Flash" {
-			t.Errorf("expected token_usage.model=Gemini 3 Flash, got %v", tokenUsage["model"])
+		if tokenUsage["model"] != "DeepSeek" {
+			t.Errorf("expected token_usage.model=DeepSeek, got %v", tokenUsage["model"])
 		}
 	})
 

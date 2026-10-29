@@ -39,7 +39,7 @@ type SettingDef struct {
 //
 // Per-stage *_MODEL keys are RestartRequired and labelled as boot fallbacks. Why: ai.AIClient
 // copies each stage's model into a modelSpec at construction, so mutating Config never reaches
-// a live client; and resolveModel prefers the prompt's own geminiModel/deepseekModel
+// a live client; and resolveModel prefers the prompt's own deepseekModel
 // frontmatter over that spec, so a prompt that declares one ignores this value entirely. The
 // prompt file is the source of truth for which model runs a stage.
 // Categories: auth | ai | channels | db | ops
@@ -53,10 +53,6 @@ var Registry = []SettingDef{
 	{Key: "ENV", Label: "Environment Marker", Category: "ops", Type: TypeString, RestartRequired: true},
 
 	// --- AI ---
-	{Key: "AI_PROVIDER", Label: "AI Provider (text generation)", Category: "ai", Type: TypeEnum, EnumValues: []string{"gemini", "deepseek"}, DefaultValue: "gemini", RestartRequired: true, Validate: enumValidator("gemini", "deepseek")},
-	{Key: "GEMINI_API_KEY", Label: "Gemini API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
-	{Key: "GEMINI_ANALYSIS_MODEL", Label: "Gemini Analysis Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "gemini-3-flash-preview"},
-	{Key: "GEMINI_TRANSLATION_MODEL", Label: "Gemini Translation Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "gemini-3.1-flash-lite"},
 	{Key: "DEEPSEEK_API_KEY", Label: "DeepSeek API Key", Category: "ai", Type: TypeString, Secret: true, RestartRequired: true},
 	{Key: "DEEPSEEK_BASE_URL", Label: "DeepSeek Base URL", Category: "ai", Type: TypeString, DefaultValue: "https://ollama.com/v1", RestartRequired: true},
 	{Key: "DEEPSEEK_FILTER_MODEL", Label: "Filter Model (boot fallback; prompt frontmatter wins)", Category: "ai", Type: TypeString, RestartRequired: true, DefaultValue: "deepseek-v4.1-flash"},

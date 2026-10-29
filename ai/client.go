@@ -15,14 +15,10 @@ import (
 	"time"
 
 	"github.com/whatap/go-api/trace"
-	"google.golang.org/genai"
 )
 
-// Provider identifiers select the active text-generation backend.
-const (
-	providerGemini   = "gemini"
-	providerDeepSeek = "deepseek"
-)
+// providerDeepSeek keys the per-provider prompt frontmatter overrides.
+const providerDeepSeek = "deepseek"
 
 const (
 	// DefaultMaxTokens is the standard output limit for short-form analysis tasks.
@@ -66,19 +62,18 @@ type TranslationResult struct {
 }
 
 // modelSpec binds a per-stage model id to its thinking mode. Values are resolved
-// per provider at construction time (see NewGeminiClient / newDeepSeekClient).
+// at construction time (see newDeepSeekClient).
 type modelSpec struct {
 	model    string
 	thinking ThinkingMode
 }
 
-// AIClient is the provider-neutral text-generation client. It owns all prompt
-// building, parsing and token logging and delegates the single network call to
-// an LLMTransport, so Gemini and DeepSeek share one code path.
+// AIClient is the text-generation client. It owns all prompt building, parsing
+// and token logging and delegates the single network call to an LLMTransport.
 type AIClient struct {
 	transport   LLMTransport
 	provider    string
-	tracePrefix string // APM step label prefix ("Gemini" | "DeepSeek")
+	tracePrefix string // APM step label prefix
 
 	analyze    modelSpec
 	translate  modelSpec
@@ -91,19 +86,12 @@ type AIClient struct {
 }
 
 // GeminiClient is the legacy name retained as an alias so existing call sites
-// (scanner/services holding *ai.GeminiClient) compile unchanged. New code should
-// reference AIClient directly.
+// compile unchanged; it is renamed away in a follow-up.
 type GeminiClient = AIClient
 
-// ProviderConfig carries the settings needed to construct an AIClient for either
-// provider; main.go and scanner build it from the application Config.
+// ProviderConfig carries the settings needed to construct an AIClient; main.go and
+// scanner build it from the application Config.
 type ProviderConfig struct {
-	Provider string // providerGemini (default) | providerDeepSeek
-
-	GeminiAPIKey           string
-	GeminiAnalysisModel    string
-	GeminiTranslationModel string
-
 	DeepSeekAPIKey           string
 	DeepSeekBaseURL          string
 	DeepSeekFilterModel      string
@@ -112,55 +100,15 @@ type ProviderConfig struct {
 	DeepSeekReportModel      string
 }
 
-// Enabled reports whether the configured provider has the credentials needed to run.
+// Enabled reports whether the credentials needed to run are configured.
 // Callers gate AIClient construction on this (text generation is optional at boot).
 func (pc ProviderConfig) Enabled() bool {
-	if strings.EqualFold(pc.Provider, providerDeepSeek) {
-		return strings.TrimSpace(pc.DeepSeekAPIKey) != ""
-	}
-	return strings.TrimSpace(pc.GeminiAPIKey) != ""
+	return strings.TrimSpace(pc.DeepSeekAPIKey) != ""
 }
 
-// NewAIClient builds the client for the configured provider. cfgOpts apply to the
-// Gemini genai client only (used by tests to inject a fake backend).
-func NewAIClient(ctx context.Context, pc ProviderConfig, cfgOpts ...func(*genai.ClientConfig)) (*AIClient, error) {
-	if strings.EqualFold(pc.Provider, providerDeepSeek) {
-		// Why: DeepSeek client construction is synchronous; whataphttpx.Client propagates the
-		// trace via http.Request.Context at call time, so ctx is not threaded here (matches
-		// the Gemini/embedding client pattern in internal/whataphttpx).
-		return newDeepSeekClient(pc) //nolint:contextcheck // see comment above
-	}
-	return NewGeminiClient(ctx, pc.GeminiAPIKey, pc.GeminiAnalysisModel, pc.GeminiTranslationModel, cfgOpts...)
-}
-
-// NewGeminiClient constructs an AIClient backed by Gemini. Stage specs replicate
-// the prior per-call model/thinking behavior exactly (prompt-meta model routing
-// is still honored at call time via resolveModel).
-func NewGeminiClient(ctx context.Context, apiKey, analysisModel, translationModel string, cfgOpts ...func(*genai.ClientConfig)) (*AIClient, error) {
-	t, err := newGeminiTransport(ctx, apiKey, cfgOpts...)
-	if err != nil {
-		return nil, err
-	}
-	if analysisModel == "" {
-		analysisModel = "gemini-3-flash-preview"
-	}
-	if translationModel == "" {
-		translationModel = "gemini-3.1-flash-lite"
-	}
-	logger.Infof("[GEMINI] client ready (Analysis: %s, Translation: %s)", analysisModel, translationModel)
-	return &AIClient{
-		transport:   t,
-		provider:    providerGemini,
-		tracePrefix: "Gemini",
-		analyze:     modelSpec{analysisModel, ThinkOn}, // was ThinkingBudget 3072
-		translate:   modelSpec{translationModel, ThinkDefault},
-		report:      modelSpec{analysisModel, ThinkOff}, // was ThinkingBudget 0
-		transition:  modelSpec{analysisModel, ThinkDefault},
-		viz:         modelSpec{analysisModel, ThinkDefault},
-		merge:       modelSpec{analysisModel, ThinkDefault}, // prompt-meta overrides to gemini-3-flash-preview
-		filter:      modelSpec{"", ThinkDefault},            // model resolved from lite_filter prompt meta
-		identity:    modelSpec{analysisModel, ThinkOn},      // was ThinkingBudget 1024 (preview ignores cap)
-	}, nil
+// NewAIClient builds the DeepSeek-backed client.
+func NewAIClient(pc ProviderConfig) (*AIClient, error) {
+	return newDeepSeekClient(pc)
 }
 
 func newDeepSeekClient(pc ProviderConfig) (*AIClient, error) {

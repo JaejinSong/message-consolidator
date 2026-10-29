@@ -43,8 +43,7 @@ func TestReportCompare_Generate(t *testing.T) {
 		email = v
 	}
 
-	c, err := NewAIClient(context.Background(), ProviderConfig{
-		Provider:        "deepseek",
+	c, err := NewAIClient(ProviderConfig{
 		DeepSeekAPIKey:  key,
 		DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL"),
 	})

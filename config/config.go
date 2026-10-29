@@ -13,7 +13,6 @@ import (
 type Config struct {
 	SlackToken                  string
 	SlackSigningSecret          string
-	GeminiAPIKey                string
 	GoogleClientID              string
 	GoogleClientSecret          string
 	SlackClientID               string
@@ -24,9 +23,6 @@ type Config struct {
 	AppBaseURL                  string
 	TursoURL                    string
 	TursoToken                  string
-	GeminiAnalysisModel         string
-	GeminiTranslationModel      string
-	AIProvider                  string
 	FilterProvider              string
 	ClefAPIKey                  string
 	ClefBaseURL                 string
@@ -75,7 +71,6 @@ func LoadConfig() *Config {
 	return &Config{
 		SlackToken:                 os.Getenv("SLACK_TOKEN"),
 		SlackSigningSecret:         os.Getenv("SLACK_SIGNING_SECRET"),
-		GeminiAPIKey:               os.Getenv("GEMINI_API_KEY"),
 		GoogleClientID:             os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:         os.Getenv("GOOGLE_CLIENT_SECRET"),
 		SlackClientID:              os.Getenv("SLACK_CLIENT_ID"),
@@ -87,9 +82,6 @@ func LoadConfig() *Config {
 		TursoURL:                   os.Getenv("TURSO_DATABASE_URL"),
 		TursoToken:                 os.Getenv("TURSO_AUTH_TOKEN"),
 		LogLevel:                   envOr("LOG_LEVEL", "INFO"),
-		GeminiAnalysisModel:        envOr("GEMINI_ANALYSIS_MODEL", "gemini-3-flash-preview"),
-		GeminiTranslationModel:     envOr("GEMINI_TRANSLATION_MODEL", "gemini-3.1-flash-lite"),
-		AIProvider:                 envOr("AI_PROVIDER", "gemini"),
 		DeepSeekAPIKey:             os.Getenv("DEEPSEEK_API_KEY"),
 		FilterProvider:             envOr("FILTER_PROVIDER", "llm"),
 		ClefAPIKey:                 envOr("CLEF_API_KEY", os.Getenv("DEEPSEEK_API_KEY")),

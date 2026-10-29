@@ -53,23 +53,20 @@ func TestInit_EmptyCfg(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("cfg must not be nil after Init")
 	}
-	if cfg.GeminiAPIKey != "" {
-		t.Errorf("GeminiAPIKey = %q, want empty", cfg.GeminiAPIKey)
-	}
 	if deps.roomLockSvc == nil {
 		t.Error("deps.roomLockSvc must be created unconditionally")
 	}
 	if deps.gClient != nil {
-		t.Error("deps.gClient must remain nil when GeminiAPIKey is empty")
+		t.Error("deps.gClient must remain nil when DeepSeekAPIKey is empty")
 	}
 	if deps.completionSvc != nil {
-		t.Error("deps.completionSvc must remain nil when GeminiAPIKey is empty")
+		t.Error("deps.completionSvc must remain nil when DeepSeekAPIKey is empty")
 	}
 	if deps.tasksSvc != nil {
-		t.Error("deps.tasksSvc must remain nil when GeminiAPIKey is empty")
+		t.Error("deps.tasksSvc must remain nil when DeepSeekAPIKey is empty")
 	}
 	if deps.filterSvc != nil {
-		t.Error("deps.filterSvc must remain nil when GeminiAPIKey is empty")
+		t.Error("deps.filterSvc must remain nil when DeepSeekAPIKey is empty")
 	}
 	if deps.slackClient != nil {
 		t.Error("deps.slackClient must remain nil when SlackToken is empty")

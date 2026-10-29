@@ -3,17 +3,13 @@ package services
 import (
 	"context"
 	"fmt"
-	"io"
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"google.golang.org/genai"
 )
 
 func TestBatchTranslationKeyIncludesSourceAndTenant(t *testing.T) {
@@ -45,18 +41,16 @@ func TestTranslateBatchConcurrentDifferentSourcesStaySeparate(t *testing.T) {
 	started := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var calls atomic.Int32
-	client, err := ai.NewGeminiClient(ctx, "test-key", "test-model", "test-model", func(cfg *genai.ClientConfig) {
-		cfg.HTTPClient = &http.Client{Transport: translationRoundTrip(func(r *http.Request) (*http.Response, error) {
-			call := calls.Add(1)
-			started <- struct{}{}
-			select {
-			case <-release:
-			case <-r.Context().Done():
-				return nil, r.Context().Err()
-			}
-			body := fmt.Sprintf(`{"candidates":[{"content":{"role":"model","parts":[{"text":"[{\"message_id\":1,\"translated_text\":\"call %d\"}]"}]},"finishReason":"STOP"}]}`, call)
-			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
-		})}
+	client, err := ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: "test-key", DeepSeekTranslationModel: "test-model", DeepSeekBaseURL: testutil.NewChatCompletionServer(t, func(r *http.Request) (string, error) {
+		call := calls.Add(1)
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return "", r.Context().Err()
+		}
+		return fmt.Sprintf(`[{"message_id":1,"translated_text":"call %d"}]`, call), nil
+	}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -93,10 +87,6 @@ func TestTranslateBatchConcurrentDifferentSourcesStaySeparate(t *testing.T) {
 	}
 }
 
-type translationRoundTrip func(*http.Request) (*http.Response, error)
-
-func (f translationRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
 func TestJITTranslationRejectsLateSourceAndKeepsValidPartial(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -114,17 +104,15 @@ func TestJITTranslationRejectsLateSourceAndKeepsValidPartial(t *testing.T) {
 		id, _ := result.LastInsertId()
 		ids[i] = store.MessageID(id)
 	}
-	client, err := ai.NewGeminiClient(ctx, "test-key", "test-model", "test-model", func(cfg *genai.ClientConfig) {
-		cfg.HTTPClient = &http.Client{Transport: translationRoundTrip(func(r *http.Request) (*http.Response, error) {
-			if _, err := store.GetDB().ExecContext(ctx, "UPDATE messages SET task='B' WHERE id=?", ids[0]); err != nil {
-				return nil, err
-			}
-			if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{ids[0]: "B translation"}); err != nil {
-				return nil, err
-			}
-			body := fmt.Sprintf(`{"candidates":[{"content":{"role":"model","parts":[{"text":"[{\"message_id\":%d,\"translated_text\":\"late A\"},{\"message_id\":%d,\"translated_text\":\"stable translation\"}]"}]},"finishReason":"STOP"}]}`, ids[0], ids[1])
-			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
-		})}
+	client, err := ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: "test-key", DeepSeekTranslationModel: "test-model", DeepSeekBaseURL: testutil.NewChatCompletionServer(t, func(r *http.Request) (string, error) {
+		if _, err := store.GetDB().ExecContext(ctx, "UPDATE messages SET task='B' WHERE id=?", ids[0]); err != nil {
+			return "", err
+		}
+		if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{ids[0]: "B translation"}); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf(`[{"message_id":%d,"translated_text":"late A"},{"message_id":%d,"translated_text":"stable translation"}]`, ids[0], ids[1]), nil
+	}),
 	})
 	if err != nil {
 		t.Fatal(err)

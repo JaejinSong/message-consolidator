@@ -98,12 +98,13 @@ func getCommitsSinceTime(lastTime string) string {
 }
 
 func fetchReleaseNotes(ctx context.Context, cfg *config.Config, commits, version string) (ReleaseNotesJSON, error) {
-	client, err := ai.NewAIClient(ctx, ai.ProviderConfig{
-		Provider:              "deepseek",
+	// Why: the transport takes ctx only per request via http.Request, not at construction.
+	pc := ai.ProviderConfig{
 		DeepSeekAPIKey:        cfg.DeepSeekAPIKey,
 		DeepSeekBaseURL:       cfg.DeepSeekBaseURL,
 		DeepSeekAnalysisModel: cfg.DeepSeekAnalysisModel,
-	})
+	}
+	client, err := ai.NewAIClient(pc) //nolint:contextcheck // see comment above
 	if err != nil {
 		return ReleaseNotesJSON{}, fmt.Errorf("initialize AI client: %w", err)
 	}

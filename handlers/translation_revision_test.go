@@ -5,17 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/services"
 	"message-consolidator/store"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"google.golang.org/genai"
 )
 
 func TestTranslateBatchRejectsStaleSourceWithMixedCache(t *testing.T) {
@@ -46,12 +42,10 @@ func TestTranslateBatchRejectsStaleSourceWithMixedCache(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/tasks/translate-batch", bytes.NewReader(body))
 	req = req.WithContext(WithMockUser(req.Context(), email))
 	rr := httptest.NewRecorder()
-	client, err := ai.NewGeminiClient(ctx, "test-key", "test-model", "test-model", func(cfg *genai.ClientConfig) {
-		cfg.HTTPClient = &http.Client{Transport: translationRoundTrip(func(r *http.Request) (*http.Response, error) {
-			t.Error("stale source must not reach AI")
-			body := `{"candidates":[{"content":{"role":"model","parts":[{"text":"[]"}]},"finishReason":"STOP"}]}`
-			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
-		})}
+	client, err := ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: "test-key", DeepSeekTranslationModel: "test-model", DeepSeekBaseURL: testutil.NewChatCompletionServer(t, func(r *http.Request) (string, error) {
+		t.Error("stale source must not reach AI")
+		return "[]", nil
+	}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -78,10 +72,6 @@ func TestTranslateBatchRejectsStaleSourceWithMixedCache(t *testing.T) {
 	}
 }
 
-type translationRoundTrip func(*http.Request) (*http.Response, error)
-
-func (f translationRoundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
-
 func TestTranslateBatchRejectsLateAIAndPreservesPartialErrors(t *testing.T) {
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -99,19 +89,16 @@ func TestTranslateBatchRejectsLateAIAndPreservesPartialErrors(t *testing.T) {
 		id, _ := result.LastInsertId()
 		ids[i] = store.MessageID(id)
 	}
-	client, err := ai.NewGeminiClient(ctx, "test-key", "test-model", "test-model", func(cfg *genai.ClientConfig) {
-		cfg.HTTPClient = &http.Client{Transport: translationRoundTrip(func(r *http.Request) (*http.Response, error) {
-			if _, err := store.GetDB().ExecContext(ctx, "UPDATE messages SET task='B' WHERE id=?", ids[0]); err != nil {
-				return nil, err
-			}
-			if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{ids[0]: "B translation"}); err != nil {
-				return nil, err
-			}
-			results, _ := json.Marshal([]ai.TranslationResult{{MessageID: ids[0], Text: "late A"}, {MessageID: ids[1], Text: "stable translation"}, {MessageID: ids[2], Error: "item failed"}})
-			text, _ := json.Marshal(string(results))
-			body := fmt.Sprintf("{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":%s}]},\"finishReason\":\"STOP\"}]}", text)
-			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
-		})}
+	client, err := ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: "test-key", DeepSeekTranslationModel: "test-model", DeepSeekBaseURL: testutil.NewChatCompletionServer(t, func(r *http.Request) (string, error) {
+		if _, err := store.GetDB().ExecContext(ctx, "UPDATE messages SET task='B' WHERE id=?", ids[0]); err != nil {
+			return "", err
+		}
+		if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{ids[0]: "B translation"}); err != nil {
+			return "", err
+		}
+		results, _ := json.Marshal([]ai.TranslationResult{{MessageID: ids[0], Text: "late A"}, {MessageID: ids[1], Text: "stable translation"}, {MessageID: ids[2], Error: "item failed"}})
+		return string(results), nil
+	}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -172,12 +159,10 @@ func TestTranslateBatchRejectsForeignCachedAndUncachedMessages(t *testing.T) {
 	if err := store.SaveTaskTranslationsBulk(ctx, "ko", map[store.MessageID]string{ids[0]: "Own translation", ids[1]: "Foreign translation"}); err != nil {
 		t.Fatal(err)
 	}
-	client, err := ai.NewGeminiClient(ctx, "test-key", "test-model", "test-model", func(cfg *genai.ClientConfig) {
-		cfg.HTTPClient = &http.Client{Transport: translationRoundTrip(func(r *http.Request) (*http.Response, error) {
-			t.Error("foreign uncached message must not reach AI")
-			body := `{"candidates":[{"content":{"role":"model","parts":[{"text":"[]"}]},"finishReason":"STOP"}]}`
-			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
-		})}
+	client, err := ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: "test-key", DeepSeekTranslationModel: "test-model", DeepSeekBaseURL: testutil.NewChatCompletionServer(t, func(r *http.Request) (string, error) {
+		t.Error("foreign uncached message must not reach AI")
+		return "[]", nil
+	}),
 	})
 	if err != nil {
 		t.Fatal(err)

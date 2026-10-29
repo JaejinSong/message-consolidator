@@ -3,13 +3,9 @@
 package regression
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httputil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,11 +18,9 @@ import (
 	"message-consolidator/types"
 
 	"github.com/joho/godotenv"
-	"google.golang.org/genai"
 )
 
-// To run this test, set GEMINI_API_KEY_FOR_TEST in your environment or .env file.
-// Run with "UPDATE_GOLDEN=1 make test-all" to record new API responses to VCR dumps.
+// Set DEEPSEEK_API_KEY (environment or .env) to run the live extraction regression.
 
 var taskKeywords = map[string][]string{
 	"deck":    {"deck", "presentation", "slides", "덱", "자료"},
@@ -43,113 +37,6 @@ var taskKeywords = map[string][]string{
 	"update":  {"update", "revise", "improve", "edit", "업데이트"},
 }
 
-// vcrTransport acts as an HTTP interceptor to record or replay API calls.
-type vcrTransport struct {
-	Transport http.RoundTripper
-	Mode      string
-	MockFile  string
-	APIKey    string
-}
-
-func (t *vcrTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.Mode == "replay" {
-		dump, err := os.ReadFile(t.MockFile)
-		if err != nil {
-			return nil, fmt.Errorf("VCR replay missing for %s. Run tests with UPDATE_GOLDEN=1 to record", t.MockFile)
-		}
-		return http.ReadResponse(bufio.NewReader(bytes.NewReader(dump)), req)
-	}
-
-	// record mode
-	if t.APIKey != "" {
-		req.Header.Set("x-goog-api-key", t.APIKey)
-	}
-	resp, err := t.Transport.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-	// httputil.DumpResponse includes status code, headers, and body.
-	dump, err := httputil.DumpResponse(resp, true)
-	if err == nil {
-		os.WriteFile(t.MockFile, dump, 0644)
-	}
-	return resp, nil
-}
-
-func TestAnalyze_Regression(t *testing.T) {
-	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
-	if err != nil {
-		t.Fatalf("Failed to setup test DB: %v", err)
-	}
-	t.Cleanup(cleanup)
-	logger.InitAIInferenceLogger()
-
-	godotenv.Load("../../.env", ".env", "../.env")
-
-	testCases, _ := filepath.Glob("testdata/*_input.txt")
-	for _, path := range testCases {
-		path := path
-		testName := strings.TrimSuffix(filepath.Base(path), "_input.txt")
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-			runSingleRegression(t, path, testName)
-		})
-	}
-}
-
-func shouldRecord(mockPath string) bool {
-	if os.Getenv("UPDATE_GOLDEN") == "1" {
-		return true
-	}
-
-	mockInfo, err := os.Stat(mockPath)
-	if err != nil {
-		return true // File does not exist
-	}
-
-	prompts, _ := filepath.Glob("../../ai/core/prompts/*.prompt")
-	for _, p := range prompts {
-		pInfo, err := os.Stat(p)
-		if err == nil && pInfo.ModTime().After(mockInfo.ModTime()) {
-			return true // Prompt has been modified
-		}
-	}
-	return false
-}
-
-func setupGeminiClientForTest(testName string) (*ai.GeminiClient, error) {
-	mockPath := filepath.Join("testdata", testName+"_vcr.dump")
-	mode := "replay"
-	if shouldRecord(mockPath) {
-		mode = "record"
-		fmt.Printf("[VCR] Recording mode enabled for %s (File missing or Prompt updated)\n", testName)
-	}
-
-	apiKey := os.Getenv("GEMINI_API_KEY_FOR_TEST")
-	if apiKey == "" {
-		apiKey = os.Getenv("GEMINI_API_KEY")
-	}
-
-	// In replay mode, we don't need a real API key.
-	if mode == "replay" && apiKey == "" {
-		apiKey = "dummy-vcr-key"
-	} else if mode == "record" && apiKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY is required for record mode (UPDATE_GOLDEN=1)")
-	}
-
-	transport := &vcrTransport{
-		Transport: http.DefaultTransport,
-		Mode:      mode,
-		MockFile:  mockPath,
-		APIKey:    apiKey,
-	}
-	httpClient := &http.Client{Transport: transport}
-
-	return ai.NewGeminiClient(context.Background(), apiKey, "", "", func(c *genai.ClientConfig) {
-		c.HTTPClient = httpClient
-	})
-}
-
 // setupDeepSeekClientForTest builds a live DeepSeek AIClient for extraction-equivalence
 // runs. There is no VCR for DeepSeek (the dumps are Gemini-shaped), so this always hits the
 // real API; callers must gate on DEEPSEEK_API_KEY.
@@ -158,8 +45,7 @@ func setupDeepSeekClientForTest() (*ai.AIClient, error) {
 	if key == "" {
 		return nil, fmt.Errorf("DEEPSEEK_API_KEY not set")
 	}
-	return ai.NewAIClient(context.Background(), ai.ProviderConfig{
-		Provider:        "deepseek",
+	return ai.NewAIClient(ai.ProviderConfig{
 		DeepSeekAPIKey:  key,
 		DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL"),
 	})
@@ -194,14 +80,6 @@ func TestAnalyze_Regression_DeepSeek(t *testing.T) {
 			reportExtraction(t, client, path, testName)
 		})
 	}
-}
-
-func runSingleRegression(t *testing.T, path, testName string) {
-	client, err := setupGeminiClientForTest(testName)
-	if err != nil {
-		t.Skipf("Skipping regression: %v", err)
-	}
-	runRegressionWithClient(t, client, path, testName)
 }
 
 // loadExistingTasks reads the optional "<case>_tasks.json" sidecar, which seeds the

@@ -35,8 +35,7 @@ func liveClient(t *testing.T) *AIClient {
 	if key == "" {
 		t.Skip("DEEPSEEK_API_KEY not set — skipping live DeepSeek test")
 	}
-	c, err := NewAIClient(context.Background(), ProviderConfig{
-		Provider:        "deepseek",
+	c, err := NewAIClient(ProviderConfig{
 		DeepSeekAPIKey:  key,
 		DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL"),
 	})

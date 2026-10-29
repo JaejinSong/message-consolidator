@@ -152,7 +152,7 @@ func TestDeepSeekTransportMissingKey(t *testing.T) {
 
 func TestNewAIClientDeepSeekStages(t *testing.T) {
 	t.Parallel()
-	c, err := NewAIClient(context.Background(), ProviderConfig{Provider: "deepseek", DeepSeekAPIKey: "k"})
+	c, err := NewAIClient(ProviderConfig{DeepSeekAPIKey: "k"})
 	if err != nil {
 		t.Fatalf("NewAIClient(deepseek): %v", err)
 	}
@@ -179,17 +179,6 @@ func TestResolveModelProviderRouting(t *testing.T) {
 		GeminiModel: "gemini-3-flash-preview", GeminiThinking: "off",
 		DeepSeekModel: deepSeekProModel, DeepSeekThinking: "on",
 	}}
-
-	gem := &AIClient{provider: providerGemini, report: modelSpec{model: "gemini-default", thinking: ThinkDefault}}
-	if got := gem.resolveModel(p, gem.report); got != "gemini-3-flash-preview" {
-		t.Errorf("Gemini must use geminiModel, got %q", got)
-	}
-	if got := gem.resolveThinking(p, gem.report); got != ThinkOff {
-		t.Errorf("Gemini must use geminiThinking=off, got %v", got)
-	}
-	if got := gem.resolveModel(nil, gem.report); got != "gemini-default" {
-		t.Errorf("nil prompt must fall back to spec model, got %q", got)
-	}
 
 	ds := &AIClient{provider: providerDeepSeek, report: modelSpec{model: "ds-default", thinking: ThinkOff}}
 	if got := ds.resolveModel(p, ds.report); got != deepSeekProModel {

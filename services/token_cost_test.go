@@ -119,22 +119,6 @@ func TestCostByModel_SplitWindowsSumPerRow(t *testing.T) {
 	assertFloat(t, "split-window input", in, 0.22+0.44)
 }
 
-func TestProviderDisplayName(t *testing.T) {
-	t.Parallel()
-	if got := ProviderDisplayName("deepseek"); got != "DeepSeek" {
-		t.Errorf("deepseek -> %q", got)
-	}
-	if got := ProviderDisplayName("DeepSeek"); got != "DeepSeek" {
-		t.Errorf("case-insensitive deepseek -> %q", got)
-	}
-	if got := ProviderDisplayName(""); got != "Gemini 3 Flash" {
-		t.Errorf("empty -> %q, want Gemini 3 Flash", got)
-	}
-	if got := ProviderDisplayName("gemini"); got != "Gemini 3 Flash" {
-		t.Errorf("gemini -> %q", got)
-	}
-}
-
 func assertFloat(t *testing.T, label string, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 1e-9 {
@@ -256,7 +240,7 @@ func TestGatherTokenUsageStats(t *testing.T) {
 
 	email := "tokentest@example.com"
 
-	got, err := GatherTokenUsageStats(context.Background(), email, "")
+	got, err := GatherTokenUsageStats(context.Background(), email)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -268,8 +252,8 @@ func TestGatherTokenUsageStats(t *testing.T) {
 	if got.TodayCost != 0.0 || got.MonthlyCost != 0.0 {
 		t.Errorf("expected zero costs, got today=%f monthly=%f", got.TodayCost, got.MonthlyCost)
 	}
-	if got.Model != "Gemini 3 Flash" {
-		t.Errorf("expected Model=Gemini 3 Flash, got %q", got.Model)
+	if got.Model != "DeepSeek" {
+		t.Errorf("expected Model=DeepSeek, got %q", got.Model)
 	}
 }
 
@@ -304,7 +288,7 @@ func TestGatherTokenUsageStatsByProvider(t *testing.T) {
 		t.Fatalf("seed gemini: %v", err)
 	}
 
-	got, err := GatherTokenUsageStats(context.Background(), email, "")
+	got, err := GatherTokenUsageStats(context.Background(), email)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -14,10 +14,6 @@ func Init(c *config.Config) {
 	cfg = c
 	deps.roomLockSvc = services.NewRoomLockService()
 	pc := ai.ProviderConfig{
-		Provider:                 cfg.AIProvider,
-		GeminiAPIKey:             cfg.GeminiAPIKey,
-		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
-		GeminiTranslationModel:   cfg.GeminiTranslationModel,
 		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
 		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
 		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
@@ -26,9 +22,9 @@ func Init(c *config.Config) {
 		DeepSeekReportModel:      cfg.DeepSeekReportModel,
 	}
 	if pc.Enabled() {
-		gc, err := ai.NewAIClient(context.Background(), pc)
+		gc, err := ai.NewAIClient(pc)
 		if err != nil {
-			logger.Errorf("[SCAN] failed to init AI client (%s): %v", cfg.AIProvider, err)
+			logger.Errorf("[SCAN] failed to init AI client: %v", err)
 			return
 		}
 		deps.gClient = gc

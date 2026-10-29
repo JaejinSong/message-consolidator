@@ -45,7 +45,7 @@ func TestSplitCSVForReload(t *testing.T) {
 func TestApplyHotReload(t *testing.T) {
 	t.Run("RestartRequired returns false", func(t *testing.T) {
 		api := &API{Config: &config.Config{}}
-		def := &config.SettingDef{Key: "GEMINI_API_KEY", RestartRequired: true}
+		def := &config.SettingDef{Key: "DEEPSEEK_API_KEY", RestartRequired: true}
 		if api.applyHotReload(def, "anything") {
 			t.Error("expected false for RestartRequired def")
 		}
@@ -200,7 +200,7 @@ func TestHandleListAdminSettings(t *testing.T) {
 	})
 
 	t.Run("Secret value is masked", func(t *testing.T) {
-		_ = store.UpsertSetting(context.Background(), "GEMINI_API_KEY", "secret123", store.SuperAdminEmail)
+		_ = store.UpsertSetting(context.Background(), "DEEPSEEK_API_KEY", "secret123", store.SuperAdminEmail)
 		req := NewMockRequest("GET", "/api/admin/settings", store.SuperAdminEmail)
 		rr := httptest.NewRecorder()
 		api.HandleListAdminSettings(rr, req)
@@ -208,13 +208,13 @@ func TestHandleListAdminSettings(t *testing.T) {
 		_ = json.Unmarshal(rr.Body.Bytes(), &out)
 		var found *adminSettingDTO
 		for i := range out {
-			if out[i].Key == "GEMINI_API_KEY" {
+			if out[i].Key == "DEEPSEEK_API_KEY" {
 				found = &out[i]
 				break
 			}
 		}
 		if found == nil {
-			t.Fatal("GEMINI_API_KEY not in response")
+			t.Fatal("DEEPSEEK_API_KEY not in response")
 		}
 		if !found.HasValue {
 			t.Error("expected has_value=true")
@@ -469,7 +469,6 @@ func TestHandleRemoveAdmin(t *testing.T) {
 func TestModelSettingsAreRestartOnly(t *testing.T) {
 	api := &API{Config: &config.Config{}}
 	keys := []string{
-		"GEMINI_ANALYSIS_MODEL", "GEMINI_TRANSLATION_MODEL",
 		"DEEPSEEK_FILTER_MODEL", "DEEPSEEK_ANALYSIS_MODEL",
 		"DEEPSEEK_TRANSLATION_MODEL", "DEEPSEEK_REPORT_MODEL",
 	}

@@ -4,35 +4,22 @@ package regression
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"message-consolidator/ai"
 	"message-consolidator/internal/testutil"
 	"message-consolidator/store"
 	"message-consolidator/types"
-
-	"google.golang.org/genai"
 )
 
 // Why: [Regression Test] Verifies that the Gmail extraction logic correctly separates multiple deliverables
-// without repeating global context, using a mocked Gemini API to ensure deterministic business logic validation.
+// without repeating global context, using a stubbed chat-completion endpoint to ensure deterministic business logic validation.
 func TestGmailExtraction_Mock(t *testing.T) {
 	// Why: Top-level parallelization is disabled to prevent clobbering the global store.db.
-	mockResponse := createMockGeminiResponse()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//Why: Gemini SDK appends the model name and method to the endpoint.
-		if !strings.Contains(r.URL.Path, "generateContent") {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, mockResponse)
-	}))
-	defer server.Close()
+	baseURL := testutil.NewChatCompletionServer(t, func(*http.Request) (string, error) {
+		return `[{"task": "AI 기능 기술 덱 제작", "requester": "test@example.com", "category": "todo"}, {"task": "공식 서비스 대응 범위 확정", "requester": "test@example.com", "category": "todo"}]`, nil
+	})
 
 	cleanup, err := testutil.SetupTestDB(store.InitDB, store.ResetForTest)
 	if err != nil {
@@ -41,11 +28,13 @@ func TestGmailExtraction_Mock(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	client, err := ai.NewGeminiClient(ctx, "mock-api-key", "gemini-3-flash-preview", "", func(c *genai.ClientConfig) {
-		c.HTTPOptions.BaseURL = server.URL
+	client, err := ai.NewAIClient(ai.ProviderConfig{
+		DeepSeekAPIKey:        "mock-api-key",
+		DeepSeekAnalysisModel: "test-model",
+		DeepSeekBaseURL:       baseURL,
 	})
 	if err != nil {
-		t.Fatalf("Failed to initialize Gemini client: %v", err)
+		t.Fatalf("Failed to initialize AI client: %v", err)
 	}
 
 	msg := types.EnrichedMessage{
@@ -54,23 +43,6 @@ func TestGmailExtraction_Mock(t *testing.T) {
 	}
 	tasks, err := client.Analyze(ctx, "test@example.com", msg, "Korean", "gmail", "Inbox")
 	verifyExtractionResults(t, tasks, err)
-}
-
-func createMockGeminiResponse() string {
-	//Why: Predefined mock JSON structure mimicking the Gemini API candidates response to facilitate isolated logic testing.
-	return `{
-		"candidates": [
-			{
-				"content": {
-					"parts": [
-						{
-							"text": "[{\"task\": \"AI 기능 기술 덱 제작\", \"requester\": \"test@example.com\", \"category\": \"todo\"}, {\"task\": \"공식 서비스 대응 범위 확정\", \"requester\": \"test@example.com\", \"category\": \"todo\"}]"
-						}
-					]
-				}
-			}
-		]
-	}`
 }
 
 func verifyExtractionResults(t *testing.T, tasks []store.TodoItem, err error) {

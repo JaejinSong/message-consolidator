@@ -81,14 +81,8 @@ func RateFor(model string) ModelRate {
 	return aiRates["gemini-3-flash-preview"]
 }
 
-// ProviderDisplayName labels the cost dashboard by the active provider. The displayed
-// label is approximate when history spans both providers; per-model rows drive the cost.
-func ProviderDisplayName(provider string) string {
-	if strings.EqualFold(provider, "deepseek") {
-		return "DeepSeek"
-	}
-	return "Gemini 3 Flash"
-}
+// activeProviderLabel titles the cost dashboard; per-model rows drive the actual cost.
+const activeProviderLabel = "DeepSeek"
 
 // CostByModel prices each row's tokens at its own rate and returns the input/output/thinking
 // USD components summed across rows (already divided by the per-million denominator).
@@ -211,7 +205,7 @@ func CacheHitRate(models []store.ModelTokenUsage) (rate float64, totalCached, el
 // dashboard showing zero can be traced back to the specific query that failed, instead of
 // silently looking like a user with no usage. Every failure is joined into the returned error
 // so the caller decides whether to fail the request or fall back to the (partial) response.
-func GatherTokenUsageStats(ctx context.Context, email, aiProvider string) (TokenUsageResponse, error) {
+func GatherTokenUsageStats(ctx context.Context, email string) (TokenUsageResponse, error) {
 	todayPrompt, todayCompletion, todayThinking, todayFiltered, todayErr := store.GetDailyTokenUsage(ctx, email)
 	if todayErr != nil {
 		logger.Errorf("[TOKEN_COST] daily token usage lookup failed for %s: %v", email, todayErr)
@@ -252,7 +246,7 @@ func GatherTokenUsageStats(ctx context.Context, email, aiProvider string) (Token
 		MonthlyCostOutput:   monthCostOut,
 		MonthlyCostThinking: monthCostThink,
 		MonthlyByProvider:   CostsByProvider(monthlyModels),
-		Model:               ProviderDisplayName(aiProvider),
+		Model:               activeProviderLabel,
 	}
 
 	if err := errors.Join(todayErr, monthErr, dailyModelsErr, monthlyModelsErr); err != nil {

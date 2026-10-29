@@ -8,8 +8,8 @@ func TestFindDefAndRegistryShape(t *testing.T) {
 	if def := FindDef("LOG_LEVEL"); def == nil || def.RestartRequired {
 		t.Fatalf("LOG_LEVEL should exist and be runtime-reloadable, got %+v", def)
 	}
-	if def := FindDef("GEMINI_API_KEY"); def == nil || !def.Secret || !def.RestartRequired {
-		t.Fatalf("GEMINI_API_KEY should be secret + restart-required, got %+v", def)
+	if def := FindDef("DEEPSEEK_API_KEY"); def == nil || !def.Secret || !def.RestartRequired {
+		t.Fatalf("DEEPSEEK_API_KEY should be secret + restart-required, got %+v", def)
 	}
 	if def := FindDef("UNKNOWN_KEY_xyz"); def != nil {
 		t.Fatalf("registry should reject unknown keys, got %+v", def)

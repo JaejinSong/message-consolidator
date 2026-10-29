@@ -46,7 +46,7 @@ func TestBLUFToday(t *testing.T) {
 
 	var client *ai.AIClient
 	if key := strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY")); key != "" {
-		client, err = ai.NewAIClient(ctx, ai.ProviderConfig{Provider: "deepseek", DeepSeekAPIKey: key, DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL")})
+		client, err = ai.NewAIClient(ai.ProviderConfig{DeepSeekAPIKey: key, DeepSeekBaseURL: os.Getenv("DEEPSEEK_BASE_URL")})
 		if err != nil {
 			t.Fatalf("NewAIClient: %v", err)
 		}

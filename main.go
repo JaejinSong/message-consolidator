@@ -133,14 +133,10 @@ func initSlackBot(cfg *config.Config, tasks *services.TasksService) *services.Sl
 	return services.NewSlackBot(channels.NewSlackClient(cfg.SlackToken), tasks)
 }
 
-// aiProviderConfig maps the application Config onto the provider-neutral
+// aiProviderConfig maps the application Config onto the
 // ai.ProviderConfig used to construct the text-generation client.
 func aiProviderConfig(cfg *config.Config) ai.ProviderConfig {
 	return ai.ProviderConfig{
-		Provider:                 cfg.AIProvider,
-		GeminiAPIKey:             cfg.GeminiAPIKey,
-		GeminiAnalysisModel:      cfg.GeminiAnalysisModel,
-		GeminiTranslationModel:   cfg.GeminiTranslationModel,
 		DeepSeekAPIKey:           cfg.DeepSeekAPIKey,
 		DeepSeekBaseURL:          cfg.DeepSeekBaseURL,
 		DeepSeekFilterModel:      cfg.DeepSeekFilterModel,
@@ -150,15 +146,16 @@ func aiProviderConfig(cfg *config.Config) ai.ProviderConfig {
 	}
 }
 
-// Why: Boots AI-backed services lazily; falls back to AI-less TasksService when the
-// active provider has no API key configured.
+// Why: Boots AI-backed services lazily; falls back to AI-less TasksService when no
+// API key is configured.
 func initAIServices(ctx context.Context, cfg *config.Config) (*services.ReportsService, *services.TasksService, *ai.IdentityResolver, *services.FilterReviewService) {
 	var gClient *ai.GeminiClient
 	if pc := aiProviderConfig(cfg); pc.Enabled() {
 		var err error
-		gClient, err = ai.NewAIClient(ctx, pc)
+		// Why: the transport takes ctx only per request via http.Request, not at construction.
+		gClient, err = ai.NewAIClient(pc) //nolint:contextcheck // see comment above
 		if err != nil {
-			logger.Errorf("[INIT] failed to initialize AI client (%s): %v", cfg.AIProvider, err)
+			logger.Errorf("[INIT] failed to initialize AI client: %v", err)
 		}
 	}
 	if gClient == nil {

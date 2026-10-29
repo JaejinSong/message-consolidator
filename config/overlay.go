@@ -59,7 +59,6 @@ type fieldSetter func(*Config, string)
 // branches and confines per-key parsing to its closure — extending the registry adds one entry.
 var overlaySetters = map[string]fieldSetter{
 	"SLACK_TOKEN":                  func(c *Config, r string) { c.SlackToken = r },
-	"GEMINI_API_KEY":               func(c *Config, r string) { c.GeminiAPIKey = r },
 	"GOOGLE_CLIENT_ID":             func(c *Config, r string) { c.GoogleClientID = r },
 	"GOOGLE_CLIENT_SECRET":         func(c *Config, r string) { c.GoogleClientSecret = r },
 	"SLACK_CLIENT_ID":              func(c *Config, r string) { c.SlackClientID = r },
@@ -70,9 +69,6 @@ var overlaySetters = map[string]fieldSetter{
 	"APP_BASE_URL":                 func(c *Config, r string) { c.AppBaseURL = r },
 	"TURSO_DATABASE_URL":           func(c *Config, r string) { c.TursoURL = r },
 	"TURSO_AUTH_TOKEN":             func(c *Config, r string) { c.TursoToken = r },
-	"GEMINI_ANALYSIS_MODEL":        func(c *Config, r string) { c.GeminiAnalysisModel = r },
-	"GEMINI_TRANSLATION_MODEL":     func(c *Config, r string) { c.GeminiTranslationModel = r },
-	"AI_PROVIDER":                  func(c *Config, r string) { c.AIProvider = r },
 	"DEEPSEEK_API_KEY":             func(c *Config, r string) { c.DeepSeekAPIKey = r },
 	"DEEPSEEK_BASE_URL":            func(c *Config, r string) { c.DeepSeekBaseURL = r },
 	"DEEPSEEK_FILTER_MODEL":        func(c *Config, r string) { c.DeepSeekFilterModel = r },

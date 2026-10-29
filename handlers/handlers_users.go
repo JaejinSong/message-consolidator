@@ -31,7 +31,7 @@ func (a *API) HandleUserInfo(w http.ResponseWriter, r *http.Request) {
 	// dedicated /token-usage dashboard endpoint below), consistent with autoPopulateSlackAliases
 	// above also degrading gracefully on failure — log and fall back to a best-effort response
 	// instead of failing the whole /api/user request over a cost-dashboard lookup.
-	tokenUsage, tokenUsageErr := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	tokenUsage, tokenUsageErr := services.GatherTokenUsageStats(r.Context(), email)
 	if tokenUsageErr != nil {
 		logger.Errorf("[USER] token usage lookup failed for %s: %v", email, tokenUsageErr)
 	}
@@ -180,7 +180,7 @@ func (a *API) HandleDeleteTenantAlias(w http.ResponseWriter, r *http.Request) {
 // other handler in this file uses.
 func (a *API) HandleGetTokenUsage(w http.ResponseWriter, r *http.Request) {
 	email := auth.GetUserEmail(r)
-	tokenUsage, err := services.GatherTokenUsageStats(r.Context(), email, a.Config.AIProvider)
+	tokenUsage, err := services.GatherTokenUsageStats(r.Context(), email)
 	if err != nil {
 		handleAPIError(w, r, err, "[USER]", "Failed to fetch token usage")
 		return
